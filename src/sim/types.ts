@@ -39,6 +39,14 @@ export interface Driftling {
   phase: number
   /** Cells fallen in the current descent — drives splat damage. */
   fallen: number
+  /**
+   * Where this driftling was before its last step. The simulation is integer-cell by
+   * design — the solver depends on it — but the renderer interpolates between prev
+   * and current so movement reads as continuous rather than as hops between cells.
+   * Render-only: not part of the world hash, and never read by the rules.
+   */
+  prevX: number
+  prevY: number
   /** Permanent traits, kept separate from the current activity. */
   isClimber: boolean
   isFloater: boolean

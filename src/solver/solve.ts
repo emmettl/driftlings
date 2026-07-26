@@ -187,6 +187,8 @@ export function solve(spec: LevelSpec, options: SolveOptions = {}): SolveResult 
     activity: 'faller',
     phase: 0,
     fallen: 0,
+    prevX: world.entrance.x,
+    prevY: world.entrance.y,
     isClimber: false,
     isFloater: false,
   }

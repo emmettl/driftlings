@@ -27,6 +27,8 @@ export function replay(spec: LevelSpec, plan: PlanEntry[], maxSteps = 2000): Rep
     activity: 'faller',
     phase: 0,
     fallen: 0,
+    prevX: world.entrance.x,
+    prevY: world.entrance.y,
     isClimber: false,
     isFloater: false,
   }

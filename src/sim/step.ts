@@ -5,6 +5,11 @@ import { CELL, RULES, type Driftling, type SkillId, type World } from './types'
 // (the solver clones whole worlds), but depends on nothing outside it: no clock,
 // no randomness. Same world in, same world out, every time.
 
+/** Ticks between discrete steps for a driftling's current activity. */
+export function stepPeriod(d: Driftling): number {
+  return periodFor(d)
+}
+
 function periodFor(d: Driftling): number {
   switch (d.activity) {
     case 'walker':
@@ -199,6 +204,8 @@ export function stepWorld(world: World): void {
       activity: 'faller',
       phase: 0,
       fallen: 0,
+      prevX: world.entrance.x,
+      prevY: world.entrance.y,
       isClimber: false,
       isFloater: false,
     })
@@ -218,6 +225,10 @@ export function stepWorld(world: World): void {
     d.phase += 1
     if (d.phase < periodFor(d)) continue
     d.phase = 0
+    // Remember where it was, so the renderer can animate the move rather than
+    // snapping a whole cell at once.
+    d.prevX = d.x
+    d.prevY = d.y
     advanceDriftling(world, d)
   }
 
