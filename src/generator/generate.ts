@@ -24,7 +24,7 @@ import { makeRng, type Rng } from './rng'
 // boundary walls do the turning for free (out of bounds is solid, so a walker that
 // reaches the edge simply turns around).
 
-export type Beat = 'step' | 'drop' | 'wall' | 'climb' | 'float' | 'dig'
+export type Beat = 'step' | 'drop' | 'wall' | 'climb' | 'float' | 'dig' | 'trap'
 
 /** Which skill each beat forces, if any. */
 export const BEAT_SKILL: Record<Beat, SkillId | null> = {
@@ -34,9 +34,12 @@ export const BEAT_SKILL: Record<Beat, SkillId | null> = {
   climb: 'climber',
   float: 'floater',
   dig: 'digger',
+  // A trap is escaped by digging down; the blocker it also needs is a CROWD problem,
+  // not a route one, so it is not the beat's route skill.
+  trap: 'digger',
 }
 
-const SKILL_BEATS: Beat[] = ['wall', 'climb', 'float', 'dig']
+const SKILL_BEATS: Beat[] = ['wall', 'climb', 'float', 'dig', 'trap']
 
 /** Traits that persist once granted — one is enough however many beats want it. */
 export const PERMANENT: ReadonlySet<SkillId> = new Set<SkillId>(['climber', 'floater'])
@@ -101,6 +104,9 @@ function fits(beat: Beat, gy: number, height: number, ceiling = 2): boolean {
     case 'dig':
       // Needs a pit, its floor, and a landing platform beneath that.
       return gy + 3 + 10 < height
+    case 'trap':
+      // Needs room for the shelf and a landing area well below it.
+      return gy + 12 < height
     case 'wall':
       // Needs a little headroom for the barrier and its anti-climber lip.
       return gy - 4 >= ceiling
@@ -148,6 +154,9 @@ export function generateLevel(seed: number, options: GenerateOptions = {}): Gene
   // earlier one and seals the route. This is the floor of the band overhead.
   let ceiling = 2
   const placed: Beat[] = []
+  // A trap ends the level: its whole point is that the shelf overhangs nothing, so
+  // anything built beyond it would give the crowd a safe landing and defuse it.
+  let trapped: { exitX: number; exitY: number } | null = null
 
   // Opening platform, and the entrance above it.
   const firstWidth = rng.int(7, 10)
@@ -235,6 +244,31 @@ export function generateLevel(seed: number, options: GenerateOptions = {}): Gene
         fill(g, Math.min(b0 - dir, b1 + dir), gy - 4, Math.max(b0 - dir, b1 + dir), gy - 4, '=')
         break
       }
+      case 'trap': {
+        // (terminal beat — see `trapped`)
+        // The classic blocker problem. A shelf of diggable rock whose far end simply
+        // stops over nothing: the pioneer digs down partway along and drops to safety,
+        // but everyone still walking behind marches off the end and out of the world.
+        //
+        // The route solver is happy — it digs and never goes near the edge. The crowd
+        // is not, and no route-level skill fixes that: the only thing that saves them
+        // is a blocker planted past the hole, turning the queue back so they fall
+        // through it instead. That is the whole point of the beat.
+        platform(g, xs, xe, gy, 3)
+        // Landing area below the near part of the shelf, but NOT under its far end.
+        const below = Math.min(o.height - 4, gy + 7)
+        const safeS = dir > 0 ? xs - 1 : xs + 3
+        const safeE = dir > 0 ? xe - 3 : xe + 1
+        const ls = Math.min(safeS, safeE)
+        const le = Math.max(safeS, safeE)
+        platform(g, ls, le, below)
+        gy = below
+        // The exit goes on the landing, and nothing is built past the shelf — so the
+        // far end drops out of the world, which is the hazard the blocker answers.
+        trapped = { exitX: dir > 0 ? ls + 1 : le - 1, exitY: below - 1 }
+        placed.push(beat)
+        break
+      }
       case 'dig': {
         // A pit the driftling drops into, walled in steel so the only way on is down.
         // The entry column must stay open, so the near wall sits one step back along
@@ -253,17 +287,23 @@ export function generateLevel(seed: number, options: GenerateOptions = {}): Gene
       }
     }
 
+    if (trapped) break
     placed.push(beat)
     x += segWidth * dir
   }
 
-  // Closing platform with the exit on it, laid out in the direction of travel.
-  const tailWidth = Math.max(5, Math.min(9, dir > 0 ? o.width - 1 - x : x))
-  const tailS = dir > 0 ? x : x - tailWidth + 1
-  const tailE = dir > 0 ? x + tailWidth - 1 : x
-  platform(g, tailS, tailE, gy)
-  const exitX = Math.max(1, Math.min(o.width - 2, dir > 0 ? tailE - 1 : tailS + 1))
-  g[gy - 1][exitX] = 'X'
+  if (trapped) {
+    // Trap-terminated: the exit sits on the landing under the shelf.
+    g[trapped.exitY][Math.max(1, Math.min(o.width - 2, trapped.exitX))] = 'X'
+  } else {
+    // Closing platform with the exit on it, laid out in the direction of travel.
+    const tailWidth = Math.max(5, Math.min(9, dir > 0 ? o.width - 1 - x : x))
+    const tailS = dir > 0 ? x : x - tailWidth + 1
+    const tailE = dir > 0 ? x + tailWidth - 1 : x
+    platform(g, tailS, tailE, gy)
+    const exitX = Math.max(1, Math.min(o.width - 2, dir > 0 ? tailE - 1 : tailS + 1))
+    g[gy - 1][exitX] = 'X'
+  }
 
   // Grant exactly the skills the beats demand — no spares. If a beat turns out not
   // to be forced, the solver will find the cheaper route and the level is rejected.
@@ -293,6 +333,11 @@ export function generateLevel(seed: number, options: GenerateOptions = {}): Gene
   for (const s of PERMANENT) {
     if ((skills[s] ?? 0) > 0) skills[s] = o.total
   }
+  // A trap is survivable by the pioneer but not by the crowd behind it, so the level
+  // has to hand out the blocker that saves them. It is deliberately outside the route
+  // accounting: the solver will never spend it, because it does nothing for a route.
+  const traps = placed.filter((b) => b === 'trap').length
+  if (traps > 0) skills.blocker = traps
 
   return {
     seed,

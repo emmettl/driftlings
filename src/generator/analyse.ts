@@ -73,6 +73,11 @@ export function analyse(spec: LevelSpec): Analysis {
   for (const s of SKILL_IDS) {
     const granted = spec.skills[s] ?? 0
     if (granted <= 0) continue
+    // A blocker does nothing for the driftling that becomes it — it exists to turn
+    // OTHER driftlings around. It is therefore never load bearing for a route, and
+    // route-level analysis would always call it slack. Whether the level actually
+    // needs one is a crowd question, answered by the blocker search instead.
+    if (s === 'blocker') continue
     // Per-driftling traits are stocked per head so the whole crowd can follow, so
     // taking one away proves nothing — ask whether the level needs the trait at all.
     // For terrain skills, taking one away is exactly the question: is this a spare?

@@ -2,6 +2,7 @@ import { solve, type SolveResult } from '../solver/solve'
 import { replay } from '../solver/replay'
 import { analyse, type Analysis } from './analyse'
 import { runCrowd, type CrowdResult } from '../solver/crowd'
+import { findBlocker } from '../solver/blocker'
 import { generateLevel, type GenerateOptions, type GeneratedLevel } from './generate'
 
 // The generator builds levels it *believes* are solvable. This is where that belief
@@ -52,6 +53,11 @@ export interface Verdict {
   analysis?: Analysis
   /** What actually happens when the whole crowd is released. */
   crowd?: CrowdResult
+  /**
+   * True when the crowd only gets home if a blocker is planted — the level poses a
+   * crowd-management problem, not just a route.
+   */
+  requiresBlocker?: boolean
 }
 
 export function verify(level: GeneratedLevel, bar: QualityBar = DEFAULT_BAR): Verdict {
@@ -89,8 +95,22 @@ export function verify(level: GeneratedLevel, bar: QualityBar = DEFAULT_BAR): Ve
   // Finally: release everyone. The solver only ever proved a single route, and a
   // level is won by a quota — those are different claims, and the difference is
   // exactly where per-driftling traits and hazards bite.
-  const crowd = runCrowd(level.spec, result.plan, { autoTraits: level.traits })
-  const withCrowd = { ...scored, crowd }
+  let crowd = runCrowd(level.spec, result.plan, { autoTraits: level.traits })
+  let requiresBlocker = false
+
+  // A crowd can fail where the route succeeds, and the fix may not be a route skill
+  // at all — the blocker exists to turn OTHER driftlings around, so it is invisible
+  // to a route solver. Before writing the level off, see whether planting one rescues
+  // it. If it does, the level poses a genuine crowd-management problem.
+  if (crowd.saved < bar.minSaved && (level.spec.skills.blocker ?? 0) > 0) {
+    const search = findBlocker(level.spec, result.plan)
+    if (search.with && search.with.saved >= bar.minSaved) {
+      crowd = search.with
+      requiresBlocker = true
+    }
+  }
+
+  const withCrowd = { ...scored, crowd, requiresBlocker }
   if (crowd.saved < bar.minSaved) return { ...withCrowd, ok: false, rejection: 'unwinnable' }
 
   // Ask for what the level can actually deliver, keeping a little slack for mistakes.
