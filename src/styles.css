@@ -215,3 +215,15 @@ canvas {
   color: var(--cyan);
   border: 1px solid rgba(75, 224, 255, 0.5);
 }
+
+.minimap {
+  position: absolute;
+  right: 14px;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  border: 1px solid rgba(75, 224, 255, 0.28);
+  border-radius: 6px;
+  background: rgba(8, 10, 26, 0.7);
+  image-rendering: pixelated;
+  max-height: 34vh;
+  pointer-events: none;
+}

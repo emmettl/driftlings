@@ -25,6 +25,7 @@ interface GameState {
   generating: boolean
   revision: number
   selected: SkillId | null
+  cameraMode: 'follow' | 'overview'
   paused: boolean
   speed: number
   tick: () => void
@@ -32,6 +33,7 @@ interface GameState {
   applyTo: (id: number) => void
   reset: () => void
   togglePause: () => void
+  toggleCamera: () => void
   setSpeed: (n: number) => void
   newGenerated: () => void
 }
@@ -43,6 +45,7 @@ export const useGame = create<GameState>()((set, get) => ({
   generating: false,
   revision: 0,
   selected: null,
+  cameraMode: 'follow',
   paused: false,
   speed: 1,
 
@@ -100,5 +103,7 @@ export const useGame = create<GameState>()((set, get) => ({
   },
 
   togglePause: () => set({ paused: !get().paused }),
+  toggleCamera: () =>
+    set({ cameraMode: get().cameraMode === 'follow' ? 'overview' : 'follow' }),
   setSpeed: (n) => set({ speed: n }),
 }))

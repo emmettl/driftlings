@@ -1,5 +1,6 @@
 import { SKILL_IDS } from '../sim/types'
 import { useGame } from '../store'
+import { Minimap } from './Minimap'
 
 const LABEL: Record<string, string> = {
   climber: 'CLIMB',
@@ -23,6 +24,8 @@ export function Hud() {
   const seed = useGame((s) => s.seed)
   const generating = useGame((s) => s.generating)
   const newGenerated = useGame((s) => s.newGenerated)
+  const cameraMode = useGame((s) => s.cameraMode)
+  const toggleCamera = useGame((s) => s.toggleCamera)
 
   const out = world.saved + world.lost
 
@@ -44,6 +47,9 @@ export function Hud() {
         <div className="right">
           <button onClick={togglePause}>{paused ? '▶' : '❚❚'}</button>
           <button onClick={() => setSpeed(speed === 1 ? 3 : 1)}>{speed}×</button>
+          <button onClick={toggleCamera} title="follow / whole level">
+            {cameraMode === 'follow' ? '⤢' : '⤡'}
+          </button>
           <button onClick={reset}>↻</button>
           <button onClick={newGenerated} disabled={generating} title="generate a new level">
             {generating ? '…' : '✦'}
@@ -67,6 +73,8 @@ export function Hud() {
           )
         })}
       </div>
+
+      <Minimap />
 
       <div className="hint">
         {selected ? `tap a driftling to make it ${LABEL[selected].toLowerCase()}` : 'pick a skill'}
