@@ -1,5 +1,5 @@
 import { belowFloor, carve, isDiggable, isExit, isSolid } from './terrain'
-import { CELL, RULES, type Driftling, type World } from './types'
+import { CELL, RULES, type Driftling, type SkillId, type World } from './types'
 
 // One tick of the world. Pure in spirit — it mutates `world` in place for speed
 // (the solver clones whole worlds), but depends on nothing outside it: no clock,
@@ -142,7 +142,14 @@ function stepDigger(world: World, d: Driftling): void {
   d.y += 1
 }
 
-function stepOne(world: World, d: Driftling): void {
+/**
+ * Advance one driftling by a single discrete step, ignoring tick pacing.
+ *
+ * This is the single definition of how a driftling moves. The game loop reaches it
+ * through `stepWorld` (which adds tick periods and spawning); the solver calls it
+ * directly, so a solution it finds cannot diverge from the game's actual rules.
+ */
+export function advanceDriftling(world: World, d: Driftling): void {
   switch (d.activity) {
     case 'walker':
       stepWalker(world, d)
@@ -211,46 +218,63 @@ export function stepWorld(world: World): void {
     d.phase += 1
     if (d.phase < periodFor(d)) continue
     d.phase = 0
-    stepOne(world, d)
+    advanceDriftling(world, d)
   }
 
   const settled = world.driftlings.every((d) => d.activity === 'saved' || d.activity === 'dead')
   if (world.spawned >= world.total && settled) world.finished = true
 }
 
-/** Apply a skill to a driftling. Returns false if it could not be applied. */
-export function assignSkill(world: World, id: number, skill: keyof World['skills']): boolean {
-  if ((world.skills[skill] ?? 0) <= 0) return false
-  const d = world.driftlings.find((x) => x.id === id)
-  if (!d || d.activity === 'saved' || d.activity === 'dead') return false
-
+/**
+ * Whether a skill may be applied to this driftling right now — one definition,
+ * shared by the UI, the game loop and the solver.
+ */
+export function canAssign(d: Driftling, skill: SkillId): boolean {
+  if (d.activity === 'saved' || d.activity === 'dead') return false
   switch (skill) {
     case 'climber':
-      if (d.isClimber) return false
+      return !d.isClimber
+    case 'floater':
+      return !d.isFloater
+    case 'blocker':
+    case 'basher':
+    case 'digger':
+      return d.activity === 'walker'
+    default:
+      return false
+  }
+}
+
+/** Apply a skill to a driftling. Assumes `canAssign` already passed. */
+export function applySkill(d: Driftling, skill: SkillId): void {
+  switch (skill) {
+    case 'climber':
       d.isClimber = true
       break
     case 'floater':
-      if (d.isFloater) return false
       d.isFloater = true
       if (d.activity === 'faller') d.activity = 'floater'
       break
     case 'blocker':
-      if (d.activity !== 'walker') return false
       d.activity = 'blocker'
       break
     case 'basher':
-      if (d.activity !== 'walker') return false
       d.activity = 'basher'
       d.phase = 0
       break
     case 'digger':
-      if (d.activity !== 'walker') return false
       d.activity = 'digger'
       d.phase = 0
       break
-    default:
-      return false
   }
+}
+
+/** Spend a skill from the world's inventory on a driftling. */
+export function assignSkill(world: World, id: number, skill: SkillId): boolean {
+  if ((world.skills[skill] ?? 0) <= 0) return false
+  const d = world.driftlings.find((x) => x.id === id)
+  if (!d || !canAssign(d, skill)) return false
+  applySkill(d, skill)
   world.skills[skill] -= 1
   return true
 }

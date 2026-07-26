@@ -51,12 +51,54 @@ src/
   ui/         HUD and skill bar
 ```
 
+## The solver
+
+`solver/solve.ts` answers the question generation depends on: **can one driftling get
+from the entrance to the exit, and with which skills?** In a level where everyone
+spawns in the same place, a route that works for one works for the crowd; crowd
+management (blockers holding others back) is a separate layer on top.
+
+It is a uniform-cost search over `(position, facing, activity, traits, carved terrain,
+skills left)`, ordered to spend **as few skills as possible**, tie-broken by fewest
+steps. Terrain is part of the state — bashers and diggers reshape it — which is what
+makes this search rather than pathfinding. Nodes carry only a list of carved cell
+indices rather than a copy of the grid, so they stay cheap to hash and store.
+
+It moves the driftling with the game's own `advanceDriftling`, so a route it finds is
+one the real game reproduces. `solver/replay.ts` then re-walks the plan independently
+and checks it reaches the exit — a solver that convinces itself of an unwalkable route
+gets caught.
+
+### Measured cost
+
+| case | expansions | time |
+|---|--:|--:|
+| hand-made level, solvable | 398 | 4 ms |
+| flat corridor, width 120 | 123 | 1 ms |
+| **unsolvable** (sealed exit), 1 of each skill | 7,738 | 15 ms |
+| **unsolvable**, 3 of each skill | 26,580 | 33 ms |
+
+Two findings that matter:
+
+- **A generous inventory does not blow up the search.** 398 expansions whether the
+  level grants one of each skill or four, because the cost function finds the cheap
+  route before it explores expensive ones.
+- **The worst case — proving a level unsolvable, where the search must exhaust
+  everything reachable — grows roughly linearly in inventory size, not
+  exponentially.** ~30 ms on a small level.
+
+That makes generate-and-verify comfortably affordable: tens of candidate levels per
+second, each *proved* solvable rather than hoped to be. (Caveat: measured on small
+levels; a large level with a big inventory and no solution is the case to watch.)
+
 ## Where this is going
 
 1. ~~Deterministic simulation + a hand-made level~~ ✅
-2. **A solver** — can it prove this level solvable, and with which skills?
-3. A generator that works *backwards from a solution*, so solvability is true by
-   construction, verified by the solver.
+2. ~~A solver that proves solvability and finds the minimum skill set~~ ✅
+3. A generator working *backwards from a solution*, so solvability is true by
+   construction — with the solver used in the other direction, to reject levels that
+   are solvable *too easily* (no skills needed) or only one way.
 
-The open question is not whether levels can be generated — it is whether generated
-levels are any *fun*. That is what makes it worth finding out.
+The open question was never whether levels can be generated. It is whether generated
+levels are any *fun* — and the solver gives us the first real handle on that, because
+"how many distinct routes" and "how many skills are forced" are measurable.
