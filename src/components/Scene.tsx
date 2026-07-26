@@ -129,15 +129,23 @@ function Rig({ world }: { world: World }) {
 
     // The lean chases the lag on its own, slower spring, so it builds as you drag and
     // eases back afterwards rather than snapping with the camera.
+    //
+    // Only while dragging the map, though. Zooming also moves the camera target — out
+    // to the middle of the level, or back to whoever is leading — and that lag is not
+    // a drag, so leaning on it made the whole level swing every time you touched the
+    // wheel. Outside manual mode the lean simply unwinds to level.
     const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v))
     const lk = 1 - Math.pow(0.02, Math.min(dt, 0.1))
+    const dragging = mode === 'manual'
     // Roll is the effect: the map tilts about the view axis, leaning into the drag.
     // Kept small — it should be felt rather than noticed, and a big roll makes a
     // side-on puzzle harder to read for no gain.
-    lean.current.roll += (clamp(-lagX * 0.006, 0.05) - lean.current.roll) * lk
+    const rollTo = dragging ? clamp(-lagX * 0.006, 0.05) : 0
     // A smaller orbit rides along, just enough that the backdrop shifts against the
     // level and the tilt reads as a viewpoint rather than a rotated picture.
-    lean.current.yaw += (clamp(lagX * 0.002, 0.022) - lean.current.yaw) * lk
+    const yawTo = dragging ? clamp(lagX * 0.002, 0.022) : 0
+    lean.current.roll += (rollTo - lean.current.roll) * lk
+    lean.current.yaw += (yawTo - lean.current.yaw) * lk
 
     const f = focus.current
     // Orbit the focus by the lean, so the tilt is a real change of viewpoint — the
@@ -146,7 +154,7 @@ function Rig({ world }: { world: World }) {
     const height = f.d * 0.05
     camera.position.set(
       f.x + Math.sin(yaw) * f.d,
-      f.y + height - lagY * 0.012,
+      f.y + height - (dragging ? lagY * 0.012 : 0),
       Math.cos(yaw) * f.d,
     )
     camera.lookAt(f.x, f.y, 0)
