@@ -3,22 +3,22 @@ import { Color, InstancedMesh, Object3D } from 'three'
 import { CELL } from '../sim/types'
 import type { World } from '../sim/types'
 
-// The level is a cut-away slab of rock. One box per cell was the problem: the face we
-// actually look at ends up a single flat plane per cell, which reads as a chunky tile
-// map however carefully it is coloured.
+// The level is a cut-away slab, and it is made of two substances that behave very
+// differently — earth can be dug and bashed through, steel cannot. They used to be the
+// same boxes in two colours, which wasted the clearest channel available for telling
+// the player what they can cut through.
 //
-// So the visible surface is built from several passes:
+// So each material gets its own treatment, and they are drawn by separate passes:
 //
-//   bulk    one box per cell — the structural mass, mostly hidden behind everything else
-//   plates  the face split into a 2x2 mosaic, each quadrant at its own depth and
-//           slightly rolled, so the wall we look at has genuine relief
-//   rubble  faceted chunks on walkable surfaces and along open edges, breaking the
-//           perfectly straight silhouette a grid otherwise gives you
-//   crown   a bright lip picking out every walkable edge
-//   crystal occasional growths, for variety
+//   EARTH  rough and irregular. A 2x2 mosaic face at varying depths, faceted scree on
+//          every walkable surface and open edge, crystal growths, and a soft lip along
+//          walkable edges. Coloured by strata, so depth reads as a different rock.
+//   STEEL  manufactured. Inset panels leaving a seam between neighbours, rivets at the
+//          panel corners, a hazard trim along exposed edges, and a metallic finish that
+//          catches light quite differently. Uniform colour — it is not geology.
 //
-// Everything is instanced — five draw calls for the whole level, whatever its size —
-// and every value derives from (x, y) by hash, so a level always looks the same.
+// Everything is instanced (nine draw calls for any level) and every value derives from
+// (x, y) by hash, so a level always looks the same.
 
 const DEPTH = 3.4
 /**
@@ -27,8 +27,6 @@ const DEPTH = 3.4
  */
 const FRONT = 1.55
 
-// The rock changes character with altitude, so a descent reads as going somewhere
-// rather than as more of the same.
 const STRATA = [
   { surface: new Color('#5fd6ff'), body: new Color('#3f6ea8'), crown: new Color('#9beeff') },
   { surface: new Color('#a071e8'), body: new Color('#4b3a86'), crown: new Color('#c9a6ff') },
@@ -48,14 +46,13 @@ function strataAt(t: number) {
   }
 }
 
-const PALETTE = {
-  earthDeep: new Color('#0e1630'),
-  steelTop: new Color('#b39ae8'),
-  steelDeep: new Color('#3b2f63'),
-  crystal: new Color('#7affd4'),
-}
+const EARTH_DEEP = new Color('#0e1630')
+const CRYSTAL = new Color('#7affd4')
+const STEEL_PANEL = new Color('#8f86b8')
+const STEEL_BULK = new Color('#2a2547')
+const STEEL_RIVET = new Color('#cfc6ef')
+const STEEL_TRIM = new Color('#ffc861') // hazard amber: this is the stuff you cannot dig
 
-/** Stable pseudo-random in [0,1) from a cell coordinate. */
 function hash(x: number, y: number, salt = 0): number {
   const n = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453
   return n - Math.floor(n)
@@ -64,23 +61,25 @@ function hash(x: number, y: number, salt = 0): number {
 interface Block {
   x: number
   y: number
-  kind: number
-  /** How many solid cells sit directly above, capped — drives the depth shading. */
+  steel: boolean
   buried: number
   top: boolean
   openLeft: boolean
   openRight: boolean
   n: number
-  /** Position through the level's strata, 0 at the surface and 1 at the depths. */
   depthT: number
 }
 
 export function Terrain({ world, revision }: { world: World; revision: number }) {
-  const bulk = useRef<InstancedMesh>(null)
-  const plates = useRef<InstancedMesh>(null)
-  const rubble = useRef<InstancedMesh>(null)
-  const crown = useRef<InstancedMesh>(null)
+  const earthBulk = useRef<InstancedMesh>(null)
+  const earthPlates = useRef<InstancedMesh>(null)
+  const scree = useRef<InstancedMesh>(null)
+  const lip = useRef<InstancedMesh>(null)
   const crystal = useRef<InstancedMesh>(null)
+  const steelBulk = useRef<InstancedMesh>(null)
+  const panels = useRef<InstancedMesh>(null)
+  const rivets = useRef<InstancedMesh>(null)
+  const trim = useRef<InstancedMesh>(null)
 
   const blocks = useMemo(() => {
     const out: Block[] = []
@@ -98,7 +97,7 @@ export function Terrain({ world, revision }: { world: World; revision: number })
         out.push({
           x,
           y,
-          kind: c,
+          steel: c === CELL.STEEL,
           buried,
           top: !solid(x, y - 1),
           openLeft: !solid(x - 1, y),
@@ -113,38 +112,93 @@ export function Terrain({ world, revision }: { world: World; revision: number })
   }, [world, revision])
 
   useLayoutEffect(() => {
-    const meshes = [bulk.current, plates.current, rubble.current, crown.current, crystal.current]
-    if (meshes.some((m) => !m)) return
-    const [bu, pl, ru, cr, cy] = meshes as InstancedMesh[]
+    const all = [
+      earthBulk.current,
+      earthPlates.current,
+      scree.current,
+      lip.current,
+      crystal.current,
+      steelBulk.current,
+      panels.current,
+      rivets.current,
+      trim.current,
+    ]
+    if (all.some((m) => !m)) return
+    const [eb, ep, sc, lp, cy, sb, pa, ri, tr] = all as InstancedMesh[]
 
     const d = new Object3D()
     const tint = new Color()
-    let nPlate = 0
-    let nRubble = 0
-    let nCrown = 0
-    let nCrystal = 0
+    const n = { eb: 0, ep: 0, sc: 0, lp: 0, cy: 0, sb: 0, pa: 0, ri: 0, tr: 0 }
 
-    blocks.forEach((blk, i) => {
-      const steel = blk.kind === CELL.STEEL
+    for (const blk of blocks) {
+      if (blk.steel) {
+        // ---------- STEEL: manufactured ----------
+        const depth = DEPTH + 0.4
+        d.position.set(blk.x, -blk.y, FRONT - 0.2 - depth / 2)
+        d.scale.set(1, 1, depth)
+        d.rotation.set(0, 0, 0)
+        d.updateMatrix()
+        sb.setMatrixAt(n.sb, d.matrix)
+        sb.setColorAt(n.sb, STEEL_BULK)
+        n.sb += 1
+
+        // An inset plate, so the gap to its neighbours reads as a panel seam.
+        d.position.set(blk.x, -blk.y, FRONT - 0.09)
+        d.scale.set(0.86, 0.86, 0.18)
+        d.updateMatrix()
+        pa.setMatrixAt(n.pa, d.matrix)
+        tint.copy(STEEL_PANEL).multiplyScalar(0.82 + blk.n * 0.22)
+        pa.setColorAt(n.pa, tint)
+        n.pa += 1
+
+        // Rivets at the panel corners.
+        for (const [rx, ry] of [
+          [-0.31, -0.31],
+          [0.31, -0.31],
+          [-0.31, 0.31],
+          [0.31, 0.31],
+        ]) {
+          d.position.set(blk.x + rx, -blk.y + ry, FRONT + 0.02)
+          d.scale.setScalar(0.055)
+          d.updateMatrix()
+          ri.setMatrixAt(n.ri, d.matrix)
+          ri.setColorAt(n.ri, STEEL_RIVET)
+          n.ri += 1
+        }
+
+        // Hazard trim on exposed edges — the visual promise that this cannot be dug.
+        const faces: [number, number, number, number][] = []
+        if (blk.top) faces.push([0, 0.46, 1, 0.1])
+        if (blk.openLeft) faces.push([-0.46, 0, 0.1, 1])
+        if (blk.openRight) faces.push([0.46, 0, 0.1, 1])
+        for (const [fx, fy, w, h] of faces) {
+          d.position.set(blk.x + fx, -blk.y + fy, FRONT - 0.2)
+          d.scale.set(w, h, 0.55)
+          d.updateMatrix()
+          tr.setMatrixAt(n.tr, d.matrix)
+          tr.setColorAt(n.tr, STEEL_TRIM)
+          n.tr += 1
+        }
+        continue
+      }
+
+      // ---------- EARTH: rough and irregular ----------
       const strata = strataAt(blk.depthT)
       const shade = Math.min(1, blk.buried / 5)
-
-      const bodyColour = (extra: number) => {
-        if (steel) tint.copy(PALETTE.steelTop).lerp(PALETTE.steelDeep, shade)
-        else tint.copy(blk.top ? strata.surface : strata.body).lerp(PALETTE.earthDeep, shade)
+      const rock = (extra: number) => {
+        tint.copy(blk.top ? strata.surface : strata.body).lerp(EARTH_DEEP, shade)
         return tint.multiplyScalar(0.8 + extra * 0.34)
       }
 
-      // --- bulk: the mass behind the face ---
       const depth = DEPTH + blk.n * 1.4
       d.position.set(blk.x, -blk.y, FRONT - 0.22 - depth / 2)
       d.scale.set(1, 1, depth)
       d.rotation.set(0, 0, 0)
       d.updateMatrix()
-      bu.setMatrixAt(i, d.matrix)
-      bu.setColorAt(i, bodyColour(blk.n * 0.6))
+      eb.setMatrixAt(n.eb, d.matrix)
+      eb.setColorAt(n.eb, rock(blk.n * 0.6))
+      n.eb += 1
 
-      // --- plates: the face as a 2x2 mosaic, each quadrant at its own depth ---
       for (let q = 0; q < 4; q++) {
         const qx = (q % 2) - 0.5
         const qy = (q < 2 ? 1 : 0) - 0.5
@@ -153,15 +207,13 @@ export function Terrain({ world, revision }: { world: World; revision: number })
         const out = 0.12 + h1 * 0.3
         d.position.set(blk.x + qx * 0.5, -blk.y + qy * 0.5, FRONT - out / 2)
         d.scale.set(0.52 + h2 * 0.06, 0.52 + h1 * 0.06, out)
-        // A touch of roll, so the quadrants do not line back up into a grid.
         d.rotation.set(0, 0, (h2 - 0.5) * 0.1)
         d.updateMatrix()
-        pl.setMatrixAt(nPlate, d.matrix)
-        pl.setColorAt(nPlate, bodyColour(h1))
-        nPlate += 1
+        ep.setMatrixAt(n.ep, d.matrix)
+        ep.setColorAt(n.ep, rock(h1))
+        n.ep += 1
       }
 
-      // --- rubble: chunks on walkable surfaces and along open edges ---
       const edges: [number, number][] = []
       if (blk.top) edges.push([0, 0.5])
       if (blk.openLeft) edges.push([-0.5, 0])
@@ -179,46 +231,48 @@ export function Terrain({ world, revision }: { world: World; revision: number })
           d.scale.set(s, s * (0.7 + g * 0.6), s)
           d.rotation.set(g * 3.1, g * 2.2, g * 1.4)
           d.updateMatrix()
-          ru.setMatrixAt(nRubble, d.matrix)
-          ru.setColorAt(nRubble, bodyColour(0.25 + g * 0.5))
-          nRubble += 1
+          sc.setMatrixAt(n.sc, d.matrix)
+          sc.setColorAt(n.sc, rock(0.25 + g * 0.5))
+          n.sc += 1
         }
       }
 
       if (blk.top) {
-        const crownDepth = 0.55
-        d.position.set(blk.x, -blk.y + 0.46, FRONT - crownDepth / 2 + 0.05)
-        d.scale.set(1, 0.11, crownDepth)
+        d.position.set(blk.x, -blk.y + 0.46, FRONT - 0.22)
+        d.scale.set(1, 0.11, 0.55)
         d.rotation.set(0, 0, 0)
         d.updateMatrix()
-        cr.setMatrixAt(nCrown, d.matrix)
-        cr.setColorAt(nCrown, steel ? PALETTE.steelTop : strata.crown)
-        nCrown += 1
+        lp.setMatrixAt(n.lp, d.matrix)
+        lp.setColorAt(n.lp, strata.crown)
+        n.lp += 1
 
-        // Occasional growths, purely decorative.
         const g = hash(blk.x, blk.y, 3)
-        if (!steel && g > 0.86) {
+        if (g > 0.86) {
           const h = 0.3 + g * 0.5
           d.position.set(blk.x + (g - 0.86) * 2 - 0.15, -blk.y + 0.5 + h / 2, FRONT - 0.5)
           d.scale.set(0.14, h, 0.14)
           d.rotation.set(0, g * 2, (g - 0.9) * 1.2)
           d.updateMatrix()
-          cy.setMatrixAt(nCrystal, d.matrix)
-          cy.setColorAt(nCrystal, PALETTE.crystal)
-          nCrystal += 1
+          cy.setMatrixAt(n.cy, d.matrix)
+          cy.setColorAt(n.cy, CRYSTAL)
+          n.cy += 1
         }
       }
-    })
+    }
 
-    const counts: [InstancedMesh, number][] = [
-      [bu, blocks.length],
-      [pl, nPlate],
-      [ru, nRubble],
-      [cr, nCrown],
-      [cy, nCrystal],
+    const pairs: [InstancedMesh, number][] = [
+      [eb, n.eb],
+      [ep, n.ep],
+      [sc, n.sc],
+      [lp, n.lp],
+      [cy, n.cy],
+      [sb, n.sb],
+      [pa, n.pa],
+      [ri, n.ri],
+      [tr, n.tr],
     ]
-    for (const [m, n] of counts) {
-      m.count = n
+    for (const [m, count] of pairs) {
+      m.count = count
       m.instanceMatrix.needsUpdate = true
       if (m.instanceColor) m.instanceColor.needsUpdate = true
     }
@@ -227,43 +281,61 @@ export function Terrain({ world, revision }: { world: World; revision: number })
   const cells = world.width * world.height
   return (
     <group>
-      <instancedMesh ref={bulk} args={[undefined, undefined, cells]} receiveShadow>
+      {/* ---------- earth ---------- */}
+      <instancedMesh ref={earthBulk} args={[undefined, undefined, cells]} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial roughness={0.8} metalness={0.12} />
+        <meshStandardMaterial roughness={0.85} metalness={0.05} />
       </instancedMesh>
-
-      <instancedMesh ref={plates} args={[undefined, undefined, cells * 4]} castShadow receiveShadow>
+      <instancedMesh ref={earthPlates} args={[undefined, undefined, cells * 4]} castShadow receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial roughness={0.68} metalness={0.2} flatShading />
+        <meshStandardMaterial roughness={0.78} metalness={0.06} flatShading />
       </instancedMesh>
-
-      {/* Faceted chunks: irregular normals catch the light quite differently to the
-          grid, which is most of what stops a surface reading as tiles. */}
-      <instancedMesh ref={rubble} args={[undefined, undefined, cells * 9]} castShadow>
+      <instancedMesh ref={scree} args={[undefined, undefined, cells * 9]} castShadow>
         <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial roughness={0.75} metalness={0.15} flatShading />
+        <meshStandardMaterial roughness={0.9} metalness={0.03} flatShading />
       </instancedMesh>
-
-      <instancedMesh ref={crown} args={[undefined, undefined, cells]}>
+      <instancedMesh ref={lip} args={[undefined, undefined, cells]}>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial
-          roughness={0.35}
-          metalness={0.1}
+          roughness={0.5}
           emissive="#2e6f8c"
-          emissiveIntensity={0.5}
+          emissiveIntensity={0.45}
           toneMapped={false}
         />
       </instancedMesh>
-
       <instancedMesh ref={crystal} args={[undefined, undefined, cells]} castShadow>
         <octahedronGeometry args={[1, 0]} />
         <meshStandardMaterial
-          roughness={0.25}
-          metalness={0.3}
+          roughness={0.2}
+          metalness={0.35}
           emissive="#1f7a63"
-          emissiveIntensity={0.8}
+          emissiveIntensity={0.85}
           toneMapped={false}
           flatShading
+        />
+      </instancedMesh>
+
+      {/* ---------- steel: smooth, panelled, unmistakably built ---------- */}
+      <instancedMesh ref={steelBulk} args={[undefined, undefined, cells]} receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial roughness={0.5} metalness={0.6} />
+      </instancedMesh>
+      <instancedMesh ref={panels} args={[undefined, undefined, cells]} castShadow receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial roughness={0.28} metalness={0.88} />
+      </instancedMesh>
+      <instancedMesh ref={rivets} args={[undefined, undefined, cells * 4]}>
+        <sphereGeometry args={[1, 6, 4]} />
+        <meshStandardMaterial roughness={0.22} metalness={0.95} />
+      </instancedMesh>
+      <instancedMesh ref={trim} args={[undefined, undefined, cells * 3]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial
+          roughness={0.4}
+          metalness={0.5}
+          emissive="#c47a12"
+          emissiveIntensity={0.7}
+          toneMapped={false}
         />
       </instancedMesh>
     </group>
