@@ -10,10 +10,19 @@ export function inBounds(world: World, x: number, y: number): boolean {
 
 export function cellAt(world: World, x: number, y: number): CellKind {
   // The level is bounded like a diorama: the left and right edges are solid, so a
-  // walker turns around instead of strolling out of the world. Above is open sky,
-  // and below the last row is out of play — falling off the bottom is a real loss.
+  // walker turns around instead of strolling out of the world, and there is a lid on
+  // it. Below the last row is out of play — falling off the bottom is a real loss.
+  //
+  // The lid is load-bearing, not decoration. The side walls read as solid at every
+  // height, so a climber in the edge column always sees a wall ahead; with open sky
+  // above it also never meets an overhang, so it climbs for ever — off the top of the
+  // screen, never landing, and the crowd never settles, so the level can never end.
+  // A ceiling turns that into the ordinary topped-out case: it drops back down facing
+  // away. It also bounds the solver's state space, which was otherwise infinite
+  // upwards for exactly the same reason.
   if (x < 0 || x >= world.width) return CELL.STEEL
-  if (y < 0 || y >= world.height) return CELL.EMPTY
+  if (y < 0) return CELL.STEEL
+  if (y >= world.height) return CELL.EMPTY
   return world.cells[idx(world, x, y)] as CellKind
 }
 

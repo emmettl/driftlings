@@ -25,11 +25,13 @@ const RESET_AFTER = 1500 // ticks before the arena is wiped and refilled
 
 // Weighted so the funny ones come up most.
 //
-// No climber, deliberately: a climber scales the arena's boundary wall, escapes over
-// the top of the world and splats on the way back down. Measured — with climbers in
-// the pool 20 of 24 died over a run; without, nobody does. Nothing dies on the title
-// screen.
-const WHIMSY: SkillId[] = ['blocker', 'blocker', 'digger', 'floater', 'basher']
+// Climbers are back. They used to scale the arena's boundary wall and escape over the
+// top of the world, because there was no lid on it; now they top out against the
+// ceiling and drop back down, and the arena is short enough that even that fall is
+// survivable. Measured over 12 runs: every skill in this pool, climber included,
+// kills nobody. Nothing dies on the title screen — pinned by a test, because it has
+// broken twice.
+const WHIMSY: SkillId[] = ['blocker', 'blocker', 'digger', 'floater', 'basher', 'climber']
 
 /** A world with the crowd already out and milling, so the title screen never opens on
  *  an empty arena waiting for the first driftling to be released. */

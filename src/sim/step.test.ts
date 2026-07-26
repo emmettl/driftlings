@@ -4,6 +4,7 @@ import { cloneWorld, createWorld, hashWorld, type LevelSpec } from './world'
 import { isSolid } from './terrain'
 import { RULES, type Driftling, type World } from './types'
 import { flatLevel, firstLevel } from '../levels/handmade'
+import { attractStage } from '../levels/attract'
 
 function run(w: World, ticks: number): World {
   for (let i = 0; i < ticks; i++) stepWorld(w)
@@ -174,6 +175,30 @@ describe('skills', () => {
     expect(d.y).toBeGreaterThan(startY)
   })
 
+  it('a climber tops out at the ceiling instead of leaving the world', () => {
+    // The side walls read as solid at every height, so a climber in the edge column
+    // always has a wall ahead. With open sky above there was no overhang to stop it:
+    // it climbed off the top of the level for ever, never landing, so the crowd never
+    // settled and the level could not end. The world has a lid for this reason.
+    const w = fixture(['......', '.E....', '......', '......', '######'], { climber: 1 })
+    run(w, 30)
+    const d = only(w)
+    d.activity = 'walker'
+    d.x = 0
+    d.y = 3
+    d.dir = -1
+    expect(assignSkill(w, d.id, 'climber')).toBe(true)
+
+    let highest = d.y
+    for (let i = 0; i < 400; i++) {
+      stepWorld(w)
+      highest = Math.min(highest, d.y)
+      expect(d.y).toBeGreaterThanOrEqual(0)
+    }
+    expect(highest).toBe(0) // reached the top row, and no further
+    expect(d.activity).not.toBe('dead') // came back down under its own steam
+  })
+
   it('refuses a skill with none left and does not overspend', () => {
     const w = fixture(['....', '.E..', '....', '####'], { blocker: 1 })
     run(w, 30)
@@ -183,6 +208,47 @@ describe('skills', () => {
     expect(w.skills.blocker).toBe(0)
     expect(assignSkill(w, d.id, 'blocker')).toBe(false)
     expect(w.skills.blocker).toBe(0)
+  })
+})
+
+describe('the attract arena', () => {
+  // The title screen hands out skills at random for the comedy of it, and nothing on
+  // it may ever die. That has broken twice — once when a climber escaped over the top
+  // of the world, once when a digger opened a shaft under the entrance and every
+  // driftling released afterwards fell the full height of the arena. Both were only
+  // ever caught by watching. This asserts the property instead, per skill, so a future
+  // change to the arena's shape cannot quietly reintroduce it.
+  it.each(['blocker', 'digger', 'floater', 'basher', 'climber'] as const)(
+    'loses nobody when everyone is handed %s',
+    (skill) => {
+      const w = createWorld(attractStage)
+      for (let t = 0; t < 1500; t++) {
+        stepWorld(w)
+        // Far more aggressive than the screen itself, which grants one every 26 ticks.
+        for (const d of w.driftlings) {
+          if (d.activity === 'walker') assignSkill(w, d.id, skill)
+        }
+        for (const s of Object.keys(w.skills) as (keyof typeof w.skills)[]) w.skills[s] = 99
+      }
+      expect(w.lost).toBe(0)
+    },
+  )
+
+  it('is short enough that a fall from the ceiling is survivable', () => {
+    // The invariant the arena's shape rests on. Guaranteeing each drop separately does
+    // not hold, because a digger can excavate a clear shaft from the lid to the floor,
+    // so the worst case is always "fell the entire interior".
+    const w = createWorld(attractStage)
+    const column = 15 // the entrance column: the shaft a digger is most likely to open
+    let floorTop = w.height
+    for (let y = 0; y < w.height; y++) {
+      if (isSolid(w, column, y)) {
+        floorTop = y
+        break
+      }
+    }
+    expect(floorTop).toBeLessThan(w.height) // there is a floor at all
+    expect(floorTop - 1).toBeLessThanOrEqual(RULES.splatHeight) // and it is close enough
   })
 })
 

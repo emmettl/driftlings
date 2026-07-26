@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "curate": "esbuild tools/curate.mts --bundle --platform=node --format=esm --outfile=.build/curate.mjs --log-level=warning && node .build/curate.mjs"
+    "curate": "esbuild tools/curate.mts --bundle --platform=node --format=esm --outfile=.build/curate.mjs --log-level=warning && node .build/curate.mjs",
+    "verify:pack": "esbuild tools/verify-pack.mts --bundle --platform=node --format=esm --outfile=.build/verify-pack.mjs --log-level=warning && node .build/verify-pack.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
