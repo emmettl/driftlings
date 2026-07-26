@@ -43,6 +43,7 @@ function Rig({ world }: { world: World }) {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
   const mode = useGame((s) => s.cameraMode)
+  const panned = useGame((s) => s.focus)
   // Smoothed focus, so the camera eases after the action instead of snapping to it.
   const focus = useRef({ x: world.width / 2, y: -world.height / 2, d: 40 })
 
@@ -57,7 +58,7 @@ function Rig({ world }: { world: World }) {
     let targetY = -(world.height - 1) / 2
     let targetDist = overviewDist
 
-    if (mode === 'follow') {
+    if (mode === 'follow' || mode === 'manual') {
       targetDist = Math.min(overviewDist, distanceFor(FOLLOW_CELLS))
       // Follow whoever is furthest along — that is where the decisions are being
       // made. Falling back to the entrance keeps the shot sensible before anyone is
@@ -72,8 +73,14 @@ function Rig({ world }: { world: World }) {
           lead = d
         }
       }
-      targetX = lead ? lead.x : world.entrance.x
-      targetY = lead ? -lead.y : -world.entrance.y
+      if (mode === 'manual' && panned) {
+        // The player has taken the wheel via the minimap.
+        targetX = panned.x
+        targetY = -panned.y
+      } else {
+        targetX = lead ? lead.x : world.entrance.x
+        targetY = lead ? -lead.y : -world.entrance.y
+      }
 
       // Do not show the void beyond the level edges.
       const halfH = targetDist * t

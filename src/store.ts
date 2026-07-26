@@ -27,7 +27,10 @@ interface GameState {
   /** The title screen runs until the player begins. */
   phase: 'attract' | 'playing'
   selected: SkillId | null
-  cameraMode: 'follow' | 'overview'
+  /** 'follow' tracks the action, 'overview' frames the level, 'manual' obeys the map. */
+  cameraMode: 'follow' | 'overview' | 'manual'
+  /** Where the player has panned to, in cell coordinates. */
+  focus: { x: number; y: number } | null
   paused: boolean
   speed: number
   tick: () => void
@@ -37,6 +40,7 @@ interface GameState {
   startPlaying: () => void
   togglePause: () => void
   toggleCamera: () => void
+  panTo: (x: number, y: number) => void
   setSpeed: (n: number) => void
   newGenerated: () => void
 }
@@ -50,6 +54,7 @@ export const useGame = create<GameState>()((set, get) => ({
   phase: 'attract',
   selected: null,
   cameraMode: 'follow',
+  focus: null,
   paused: false,
   speed: 1,
 
@@ -109,7 +114,10 @@ export const useGame = create<GameState>()((set, get) => ({
   startPlaying: () => set({ phase: 'playing', world: createWorld(get().spec), revision: 0 }),
 
   togglePause: () => set({ paused: !get().paused }),
+  // The button cycles back to following; the map is what puts you in manual.
   toggleCamera: () =>
-    set({ cameraMode: get().cameraMode === 'follow' ? 'overview' : 'follow' }),
+    set({ cameraMode: get().cameraMode === 'overview' ? 'follow' : 'overview', focus: null }),
+
+  panTo: (x, y) => set({ cameraMode: 'manual', focus: { x, y } }),
   setSpeed: (n) => set({ speed: n }),
 }))

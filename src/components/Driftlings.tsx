@@ -156,15 +156,21 @@ export function Driftlings({ world, revision }: { world: World; revision: number
       m.count = live.length
       m.instanceMatrix.needsUpdate = true
       if (m.instanceColor) m.instanceColor.needsUpdate = true
+      m.computeBoundingSphere()
     }
     if (canopy.current) {
       canopy.current.count = floaters
       canopy.current.instanceMatrix.needsUpdate = true
       if (canopy.current.instanceColor) canopy.current.instanceColor.needsUpdate = true
+      canopy.current.computeBoundingSphere()
     }
     if (hits.current) {
       hits.current.count = live.length
       hits.current.instanceMatrix.needsUpdate = true
+      // Critical, not cosmetic: InstancedMesh.raycast() early-outs against the cached
+      // bounding sphere, so a stale one makes the driftlings unclickable as well as
+      // invisible. It is recomputed every frame because they are always moving.
+      hits.current.computeBoundingSphere()
     }
   }
 

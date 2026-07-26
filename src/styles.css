@@ -218,6 +218,8 @@ canvas {
 
 .minimap {
   position: absolute;
+  cursor: crosshair;
+  touch-action: none;
   right: 14px;
   /* Clear of the skill bar and the hint line beneath it. */
   bottom: calc(104px + env(safe-area-inset-bottom));
@@ -225,7 +227,7 @@ canvas {
   border-radius: 6px;
   background: rgba(8, 10, 26, 0.7);
   image-rendering: pixelated;
-  pointer-events: none;
+  pointer-events: auto;
   /* A canvas keeps its attribute size unless told otherwise, so tall levels used to
      run off the bottom of the screen. Bound it on both axes and let object-fit keep
      the level's proportions rather than squashing it. */

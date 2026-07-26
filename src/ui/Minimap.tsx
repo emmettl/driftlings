@@ -11,6 +11,20 @@ const SCALE = 3
 export function Minimap() {
   const canvas = useRef<HTMLCanvasElement>(null)
   const world = useGame((s) => s.world)
+  const panTo = useGame((s) => s.panTo)
+  const dragging = useRef(false)
+
+  // Click or drag anywhere on the map to look there. The camera otherwise follows
+  // whoever is furthest along, which is useful but leaves you unable to go and check
+  // on the ones you have left behind.
+  const look = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const el = canvas.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const x = ((e.clientX - r.left) / r.width) * world.width
+    const y = ((e.clientY - r.top) / r.height) * world.height
+    panTo(x, y)
+  }
 
   useEffect(() => {
     const el = canvas.current
@@ -63,5 +77,20 @@ export function Minimap() {
     return () => cancelAnimationFrame(raf)
   }, [world])
 
-  return <canvas className="minimap" ref={canvas} />
+  return (
+    <canvas
+      className="minimap"
+      ref={canvas}
+      onPointerDown={(e) => {
+        dragging.current = true
+        e.currentTarget.setPointerCapture(e.pointerId)
+        look(e)
+      }}
+      onPointerMove={(e) => dragging.current && look(e)}
+      onPointerUp={(e) => {
+        dragging.current = false
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      }}
+    />
+  )
 }
