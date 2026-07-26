@@ -1,5 +1,7 @@
 # Driftlings
 
+**[Play it](https://emmettl.github.io/driftlings/)** — no install, runs in the browser.
+
 A Lemmings-like in 2.5D with an 8-bit chillwave finish. Gameplay is strictly 2D —
 the simulation never knows about the third dimension — but the level is drawn as an
 extruded diorama, which keeps the puzzle legible while still looking dimensional.
@@ -10,10 +12,17 @@ extruded diorama, which keeps the puzzle legible while still looking dimensional
 npm install
 npm run dev
 
-npm run lint     # oxlint
-npm test         # vitest — the simulation contract
-npm run build    # type-check + production build
+npm run lint         # oxlint
+npm test             # vitest — the simulation contract
+npm run build        # type-check + production build
+
+npm run curate       # regenerate the shipped level pack (offline, multicore)
+npm run verify:pack  # re-prove every shipped level against the CURRENT rules
 ```
+
+`verify:pack` matters more than it looks. Levels are verified once, offline, and then
+trusted for ever — so a change to the rules in `src/sim` can silently invalidate the
+pack that ships. Run it after touching the simulation or the solver.
 
 ## Why the simulation looks the way it does
 
