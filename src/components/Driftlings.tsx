@@ -177,19 +177,30 @@ export function Driftlings({ world, revision }: { world: World; revision: number
   return (
     <group>
       {PARTS.map((part) => (
-        <instancedMesh key={part} ref={refs[part]} args={[undefined, undefined, cap]} castShadow>
+        <instancedMesh
+          key={part}
+          ref={refs[part]}
+          args={[undefined, undefined, cap]}
+          castShadow
+          // Frustum culling must be off. An InstancedMesh computes its bounding sphere
+          // once and caches it, and on the first frame no driftling has spawned yet —
+          // so the sphere is computed from zero instances, comes out empty (radius -1),
+          // and every driftling is culled for the rest of the run. They are a handful
+          // of objects near the camera, so culling was never buying anything anyway.
+          frustumCulled={false}
+        >
           <boxGeometry args={[1, 1, 1]} />
           <meshStandardMaterial roughness={0.45} metalness={0.05} toneMapped={false} />
         </instancedMesh>
       ))}
 
-      <instancedMesh ref={canopy} args={[undefined, undefined, cap]}>
+      <instancedMesh ref={canopy} args={[undefined, undefined, cap]} frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial roughness={0.4} toneMapped={false} transparent opacity={0.85} />
       </instancedMesh>
 
       {/* Pick targets — invisible but still raycast. */}
-      <instancedMesh ref={hits} args={[undefined, undefined, cap]}>
+      <instancedMesh ref={hits} args={[undefined, undefined, cap]} frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </instancedMesh>

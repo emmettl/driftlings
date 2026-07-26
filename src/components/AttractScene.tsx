@@ -29,8 +29,16 @@ const RESET_AFTER = 1500 // ticks before the arena is wiped and refilled
 // screen.
 const WHIMSY: SkillId[] = ['blocker', 'blocker', 'digger', 'floater', 'basher']
 
+/** A world with the crowd already out and milling, so the title screen never opens on
+ *  an empty arena waiting for the first driftling to be released. */
+function populatedArena() {
+  const w = createWorld(attractStage)
+  for (let i = 0; i < 260; i++) stepWorld(w)
+  return w
+}
+
 export function AttractScene() {
-  const [world, setWorld] = useState(() => createWorld(attractStage))
+  const [world, setWorld] = useState(populatedArena)
   const acc = useRef(0)
   const revision = useRef(0)
   const [, forceRender] = useState(0)
@@ -61,7 +69,7 @@ export function AttractScene() {
       }
 
       if (world.tick > RESET_AFTER) {
-        setWorld(createWorld(attractStage))
+        setWorld(populatedArena())
         acc.current = 0
         return
       }
