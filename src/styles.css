@@ -147,13 +147,15 @@ canvas {
 
 .hint {
   position: absolute;
-  bottom: calc(14px + env(safe-area-inset-bottom));
-  left: 0;
-  right: 0;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, 88vw);
   text-align: center;
   font-size: 10px;
-  letter-spacing: 2px;
-  opacity: 0.5;
+  line-height: 1.5;
+  letter-spacing: 1px;
+  opacity: 0.55;
   pointer-events: none;
 }
 
@@ -377,5 +379,78 @@ canvas {
   .minimap {
     bottom: calc(70px + env(safe-area-inset-bottom));
     max-height: 22vh;
+  }
+}
+
+/* ---------- Tooltips ----------
+   Native title= tooltips are slow to appear and invisible on touch, so these are
+   styled and instant. On a phone there is no hover at all, which is why the hint
+   line under the skill bar carries the same explanation. */
+[data-tip] {
+  position: relative;
+}
+
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: max-content;
+  max-width: 230px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(75, 224, 255, 0.3);
+  background: rgba(8, 10, 26, 0.96);
+  color: #dbe6ff;
+  font-family: 'Menlo', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: 0.5px;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 10;
+}
+
+/* HUD buttons sit at the top, so their tooltips hang below. */
+.hud [data-tip]::after {
+  top: calc(100% + 6px);
+}
+
+/* Skill buttons sit at the bottom, so theirs rise above. */
+.skill[data-tip]::after {
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-4px);
+}
+
+[data-tip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Keep the outermost tooltips on screen rather than off the edge. */
+.hud .right button:last-child[data-tip]::after {
+  left: auto;
+  right: 0;
+  transform: translateY(4px);
+}
+.hud .right button:last-child[data-tip]:hover::after {
+  transform: translateY(0);
+}
+
+.skills .skill:first-child[data-tip]::after {
+  left: 0;
+  transform: translateY(-4px);
+}
+.skills .skill:first-child[data-tip]:hover::after {
+  transform: translateY(0);
+}
+
+/* No hover on touch: the hint line does this job there. */
+@media (hover: none) {
+  [data-tip]::after {
+    display: none;
   }
 }

@@ -12,8 +12,13 @@ import type { World } from '../sim/types'
 // So each material gets its own treatment, and they are drawn by separate passes:
 //
 //   EARTH  rough and irregular. A 2x2 mosaic face at varying depths, faceted scree on
-//          every walkable surface and open edge, crystal growths, and a soft lip along
-//          walkable edges. Coloured by strata, so depth reads as a different rock.
+//          every walkable surface and open edge, occasional outcrops, and a soft lip
+//          along walkable edges. Coloured by strata, so depth reads as different rock.
+//
+// Nothing decorative glows. In a puzzle game a glow is a promise that something
+// matters, and it is spent on the things that do: the exit, the entrance, the hazard
+// trim on steel you cannot dig, and the driftlings themselves. The outcrops used to be
+// bright emissive crystals and read as markers you were supposed to do something with.
 //   STEEL  manufactured. Inset panels leaving a seam between neighbours, rivets at the
 //          panel corners, a hazard trim along exposed edges, and a metallic finish that
 //          catches light quite differently. Uniform colour — it is not geology.
@@ -48,7 +53,6 @@ function strataAt(t: number) {
 }
 
 const EARTH_DEEP = new Color('#0e1630')
-const CRYSTAL = new Color('#7affd4')
 const STEEL_PANEL = new Color('#8f86b8')
 const STEEL_BULK = new Color('#2a2547')
 const STEEL_RIVET = new Color('#cfc6ef')
@@ -248,15 +252,17 @@ export function Terrain({ world, revision }: { world: World; revision: number })
         lp.setColorAt(n.lp, strata.crown)
         n.lp += 1
 
+        // Occasional outcrops. Squat, and the same rock as everything around them, so
+        // they read as landscape rather than as something you are meant to collect.
         const g = hash(blk.x, blk.y, 3)
-        if (g > 0.86) {
-          const h = 0.3 + g * 0.5
-          d.position.set(blk.x + (g - 0.86) * 2 - 0.15, -blk.y + 0.5 + h / 2, FRONT - 0.5)
-          d.scale.set(0.14, h, 0.14)
-          d.rotation.set(0, g * 2, (g - 0.9) * 1.2)
+        if (g > 0.8) {
+          const h = 0.16 + g * 0.2
+          d.position.set(blk.x + (g - 0.8) * 2.4 - 0.28, -blk.y + 0.5 + h / 2, FRONT - 0.45)
+          d.scale.set(0.2 + g * 0.12, h, 0.2 + g * 0.12)
+          d.rotation.set(g * 1.7, g * 2.4, (g - 0.85) * 1.6)
           d.updateMatrix()
           cy.setMatrixAt(n.cy, d.matrix)
-          cy.setColorAt(n.cy, CRYSTAL)
+          cy.setColorAt(n.cy, strata.surface.clone().lerp(EARTH_DEEP, 0.42))
           n.cy += 1
         }
       }

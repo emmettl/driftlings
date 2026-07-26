@@ -42,6 +42,8 @@ interface GameState {
   toggleCamera: () => void
   panTo: (x: number, y: number) => void
   setSpeed: (n: number) => void
+  cycleSpeed: () => void
+  zoom: (direction: 'in' | 'out') => void
   newGenerated: () => void
 }
 
@@ -119,5 +121,24 @@ export const useGame = create<GameState>()((set, get) => ({
     set({ cameraMode: get().cameraMode === 'overview' ? 'follow' : 'overview', focus: null }),
 
   panTo: (x, y) => set({ cameraMode: 'manual', focus: { x, y } }),
+
+  // Scrolling out pulls back to the whole level; scrolling in returns to the action.
+  // Zoom is the natural gesture for "show me more", and hunting for the right button
+  // mid-level is not.
+  zoom: (direction) => {
+    const mode = get().cameraMode
+    if (direction === 'out') {
+      if (mode !== 'overview') set({ cameraMode: 'overview', focus: null })
+    } else if (mode === 'overview') {
+      set({ cameraMode: 'follow', focus: null })
+    }
+  },
+  // Cycle rather than toggle: the default pace is a deliberate amble, so there needs
+  // to be a middle gear as well as a fast one.
   setSpeed: (n) => set({ speed: n }),
+  cycleSpeed: () => {
+    const order = [1, 2, 4]
+    const i = order.indexOf(get().speed)
+    set({ speed: order[(i + 1) % order.length] })
+  },
 }))

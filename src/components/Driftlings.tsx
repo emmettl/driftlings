@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Color, InstancedMesh, Object3D } from 'three'
 import { stepPeriod } from '../sim/step'
+import { tickAlpha } from '../game/clock'
 import type { Activity, Driftling, World } from '../sim/types'
 
 // Driftlings are little voxel figures rather than capsules: a head, a torso, two arms
@@ -95,7 +96,9 @@ export function Driftlings({ world, revision }: { world: World; revision: number
       // literally would be a sequence of hops, so the figure is drawn part-way
       // through its current step: it slides out of the cell it left and into the one
       // it is now in, arriving just as the next step lands.
-      const glide = Math.min(1, d.phase / stepPeriod(d))
+      // phase is an integer that only moves on a tick, so on its own it quantises the
+      // glide to the tick rate. The sub-tick fraction is what makes this smooth.
+      const glide = Math.min(1, (d.phase + tickAlpha()) / stepPeriod(d))
       const ease = glide * glide * (3 - 2 * glide) // smoothstep, so it settles rather than jerks
       const ox = d.prevX + (d.x - d.prevX) * ease
       const oyCell = d.prevY + (d.y - d.prevY) * ease

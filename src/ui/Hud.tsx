@@ -2,12 +2,31 @@ import { SKILL_IDS } from '../sim/types'
 import { useGame } from '../store'
 import { Minimap } from './Minimap'
 
-const LABEL: Record<string, string> = {
-  climber: 'CLIMB',
-  floater: 'FLOAT',
-  blocker: 'BLOCK',
-  basher: 'BASH',
-  digger: 'DIG',
+// Label plus a plain explanation of what the skill actually does. The counts are
+// otherwise baffling — FLOAT can read 10 while BASH reads 1 — and the reason is the
+// distinction below: a trait attaches to one driftling, a terrain skill changes the
+// level for everybody.
+const SKILL_INFO: Record<string, { label: string; tip: string }> = {
+  climber: {
+    label: 'CLIMB',
+    tip: 'Scales sheer walls. Sticks to that one driftling for good — so you get one per head.',
+  },
+  floater: {
+    label: 'FLOAT',
+    tip: 'Survives any drop. Sticks to that one driftling for good — so you get one per head.',
+  },
+  blocker: {
+    label: 'BLOCK',
+    tip: 'Plants itself and turns the others around. It is out of the game for good.',
+  },
+  basher: {
+    label: 'BASH',
+    tip: 'Tunnels sideways through earth — never steel. The tunnel stays open for everyone.',
+  },
+  digger: {
+    label: 'DIG',
+    tip: 'Digs straight down through earth — never steel. The hole stays open for everyone.',
+  },
 }
 
 export function Hud() {
@@ -18,7 +37,7 @@ export function Hud() {
   const paused = useGame((s) => s.paused)
   const togglePause = useGame((s) => s.togglePause)
   const speed = useGame((s) => s.speed)
-  const setSpeed = useGame((s) => s.setSpeed)
+  const cycleSpeed = useGame((s) => s.cycleSpeed)
   const reset = useGame((s) => s.reset)
   const spec = useGame((s) => s.spec)
   const seed = useGame((s) => s.seed)
@@ -45,13 +64,26 @@ export function Hud() {
           {seed !== null && <span className="seedtag"> · seed {seed}</span>}
         </div>
         <div className="right">
-          <button onClick={togglePause}>{paused ? '▶' : '❚❚'}</button>
-          <button onClick={() => setSpeed(speed === 1 ? 3 : 1)}>{speed}×</button>
-          <button onClick={toggleCamera} title="follow / whole level">
-            {cameraMode === 'follow' ? '⤢' : '⤡'}
+          <button data-tip={paused ? 'Resume' : 'Pause'} onClick={togglePause}>
+            {paused ? '▶' : '❚❚'}
           </button>
-          <button onClick={reset}>↻</button>
-          <button onClick={newGenerated} disabled={generating} title="generate a new level">
+          <button data-tip="Speed: 1x, 2x, 4x" onClick={cycleSpeed}>
+            {speed}×
+          </button>
+          <button
+            data-tip={
+              cameraMode === 'overview'
+                ? 'Follow the action (drag the map to look around)'
+                : 'Zoom out to the whole level'
+            }
+            onClick={toggleCamera}
+          >
+            {cameraMode === 'overview' ? '⤡' : '⤢'}
+          </button>
+          <button data-tip="Restart this level" onClick={reset}>
+            ↻
+          </button>
+          <button data-tip="A fresh generated level" onClick={newGenerated} disabled={generating}>
             {generating ? '…' : '✦'}
           </button>
         </div>
@@ -64,11 +96,12 @@ export function Hud() {
             <button
               key={id}
               className={`skill ${selected === id ? 'on' : ''}`}
+              data-tip={SKILL_INFO[id].tip}
               disabled={left <= 0}
               onClick={() => select(id)}
             >
               <span className="n">{left}</span>
-              <span className="l">{LABEL[id]}</span>
+              <span className="l">{SKILL_INFO[id].label}</span>
             </button>
           )
         })}
@@ -76,8 +109,12 @@ export function Hud() {
 
       <Minimap />
 
+      {/* Doubles as the touch story: there is no hover on a phone, so the selected
+          skill explains itself down here instead. */}
       <div className="hint">
-        {selected ? `tap a driftling to make it ${LABEL[selected].toLowerCase()}` : 'pick a skill'}
+        {selected
+          ? `${SKILL_INFO[selected].tip}  —  now tap a driftling`
+          : 'pick a skill, then tap a driftling'}
       </div>
 
       {world.finished && (

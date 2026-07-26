@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import type { World } from '../sim/types'
 import { setViewport } from '../game/viewport'
+import { setTickAlpha } from '../game/clock'
 import { Backdrop } from './Backdrop'
 import { Markers } from './Markers'
 import { Terrain } from './Terrain'
@@ -13,9 +14,10 @@ import { useGame } from '../store'
 // simulation's semantics, the solver, or any test.
 //
 // A driftling walks one cell every RULES.walkPeriod ticks, so this is really "how
-// briskly do they stroll". 30Hz was a scurry; this is a wander, which suits the tone
-// and gives you time to think before something walks off a ledge.
-const TICK_HZ = 16
+// briskly do they stroll". 30Hz was a scurry and 16 was still brisk; at 10 they amble,
+// which suits the tone and leaves you time to think before one walks off a ledge.
+// Impatience is catered for by the speed control rather than the default.
+const TICK_HZ = 10
 
 function Ticker() {
   const acc = useRef(0)
@@ -28,6 +30,9 @@ function Ticker() {
       acc.current -= 1
       tick()
     }
+    // Whatever is left over is how far we are into the next tick — the renderer uses
+    // it to place driftlings between cells rather than on them.
+    setTickAlpha(acc.current)
   })
   return null
 }

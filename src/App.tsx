@@ -9,8 +9,15 @@ import { isMobile, quality } from './game/device'
 
 export default function App() {
   const phase = useGame((s) => s.phase)
+  const zoom = useGame((s) => s.zoom)
   return (
-    <div className="app">
+    <div
+      className="app"
+      onWheel={(e) => {
+        if (phase !== 'playing') return
+        zoom(e.deltaY > 0 ? 'out' : 'in')
+      }}
+    >
       <Canvas
         dpr={[1, quality.maxDpr]}
         gl={{ antialias: !isMobile, powerPreference: 'high-performance' }}

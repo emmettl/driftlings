@@ -7,6 +7,7 @@ import { SKILL_IDS, type SkillId } from '../sim/types'
 import { Terrain } from './Terrain'
 import { Driftlings } from './Driftlings'
 import { Backdrop } from './Backdrop'
+import { setTickAlpha } from '../game/clock'
 
 // The title screen runs the real simulation on a sealed arena, so what you are
 // watching is genuine driftling behaviour rather than an animation of it — a crowd
@@ -17,7 +18,7 @@ import { Backdrop } from './Backdrop'
 // hole and drops through it, a third floats down under a canopy for no reason. The
 // arena is reset periodically so the holes and blockers do not accumulate for ever.
 
-const TICK_HZ = 14
+const TICK_HZ = 9
 const WHIMSY_EVERY = 26 // ticks between someone being handed a skill
 const RESET_AFTER = 1500 // ticks before the arena is wiped and refilled
 
@@ -75,6 +76,7 @@ export function AttractScene() {
       }
       revision.current += 1
     }
+    setTickAlpha(acc.current)
     forceRender(revision.current)
 
     // A slow drift across the arena, so the shot is never quite still.
