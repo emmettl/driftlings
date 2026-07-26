@@ -121,6 +121,37 @@ is swapped for another *demand*, and the sequence opens on one.
 worth fixing rather than screening out. Full verification costs ~20 ms per candidate
 (the analysis re-solves once per granted skill), ~65% are accepted.
 
+## Shape: the route folds
+
+Levels used to run left-to-right in a single band, which made them corridors by
+construction — a queue of obstacles rather than a place. The route is now
+**serpentine**: when it runs out of width it drops to a lower band and doubles back.
+The boundary walls do the turning for free, since out of bounds is solid, so a walker
+that reaches the edge simply turns around.
+
+| | corridor | serpentine |
+|---|--:|--:|
+| decisions per level | 2.7 | **3.0** |
+| decision spread across the route | 0.14 | **0.30** |
+| first decision at | 0.21 | 0.20 |
+
+Two things this cost, both worth knowing:
+
+- **Folding creates shortcuts.** Stacking bands vertically means a driftling can fall
+  past a band and skip its demands, so `shortcut` rejections roughly doubled and
+  acceptance fell from ~65% to ~25%. The gate screens them out, so the levels that
+  ship are still fully forced — folding just makes the generator wrong more often.
+- **Bands must be kept apart.** A climb or a dig spans several rows; when bands sat
+  4–6 apart the two overwrote each other and sealed the route (acceptance briefly
+  collapsed to 8%). Bands are now 9–12 apart with a ceiling that upward beats may not
+  cross.
+
+Level size is a real cost, not a free parameter: verification grows sharply with it,
+and generation runs on the UI thread. At the shipped 40×44 the ✦ button takes **~315 ms
+on average, ~680 ms worst case**; at 46×56 the same search took 870 ms and the test
+suite went from 7 s to 212 s. The suite therefore exercises small levels, and the
+defaults are chosen to keep generation interactive.
+
 ## Where this is going
 
 1. ~~Deterministic simulation + a hand-made level~~ ✅
@@ -128,10 +159,13 @@ worth fixing rather than screening out. Full verification costs ~20 ms per candi
 3. ~~A generator working *backwards from a solution*, so solvability is true by
    construction~~ ✅
 4. ~~Solver-derived design metrics, and a quality bar built on them~~ ✅
-5. Next: **shape**. Levels are still a left-to-right chain of beats, so they read as a
-   sequence of obstacles rather than a puzzle with a form. Backtracking, decoy routes
-   that punish a wasted skill, and beats that interact (a blocker placed early
-   changing what is reachable later) are where the real design interest lives.
+5. ~~**Shape** — a serpentine route that folds back on itself instead of a single
+   left-to-right chain~~ ✅
+6. Next: **beats that interact**. Everything so far is a sequence of independent
+   demands. The depth in Lemmings comes from a skill spent early changing what is
+   reachable later — above all the blocker, which exists to turn *other* driftlings
+   around. That needs the solver to reason about the crowd rather than one route, and
+   it is the point where the state space genuinely grows: several bodies, not one.
 
 The open question was never whether levels can be generated. It is whether generated
 levels are any *fun* — and the metrics above are the first real handle on it, because

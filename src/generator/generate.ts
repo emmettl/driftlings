@@ -16,6 +16,13 @@ import { makeRng, type Rng } from './rng'
 //
 // The beats are hand-authored idioms; the generator only composes and varies them.
 // That is deliberate: taste in the vocabulary, machine scale in the arrangement.
+//
+// The route is SERPENTINE rather than a single left-to-right corridor: when it runs
+// out of width it drops to a lower band and doubles back the other way. That is what
+// stops a level reading as a queue of obstacles — the driftling revisits the same
+// column at different heights, the level occupies a space instead of a line, and the
+// boundary walls do the turning for free (out of bounds is solid, so a walker that
+// reaches the edge simply turns around).
 
 export type Beat = 'step' | 'drop' | 'wall' | 'climb' | 'float' | 'dig'
 
@@ -45,9 +52,15 @@ export interface GenerateOptions {
 }
 
 const DEFAULTS: Required<GenerateOptions> = {
-  width: 64,
-  height: 26,
-  skillBeats: 3,
+  // Narrow and tall on purpose. The width has to run out before the beats do, or
+  // the route never folds and the level is a corridor again with extra headroom.
+  // Narrow enough that the route folds, wide enough that the folds do not stack so
+  // tightly that upper bands short-circuit lower ones — and small enough that
+  // verifying a candidate stays interactive. Bigger levels are dramatically more
+  // expensive to solve, and generation runs on the UI thread.
+  width: 40,
+  height: 44,
+  skillBeats: 5,
   total: 10,
   quota: 7,
 }
@@ -76,20 +89,21 @@ function platform(g: Grid, xs: number, xe: number, gy: number, thickness = 3): v
  * front so a demand is swapped for another demand, never quietly downgraded into
  * free walking.
  */
-function fits(beat: Beat, gy: number, height: number): boolean {
+function fits(beat: Beat, gy: number, height: number, ceiling = 2): boolean {
   switch (beat) {
     case 'float':
       // Needs a drop longer than a driftling survives, and floor to land on.
       return gy + RULES.splatHeight + 2 <= height - 5
     case 'climb':
-      // Needs headroom above for a face too tall to step up.
-      return gy - 3 >= 2
+      // Needs headroom above for a face too tall to step up, without eating into the
+      // band overhead.
+      return gy - 3 >= ceiling
     case 'dig':
       // Needs a pit, its floor, and a landing platform beneath that.
       return gy + 3 + 10 < height
     case 'wall':
       // Needs a little headroom for the barrier and its anti-climber lip.
-      return gy - 4 >= 1
+      return gy - 4 >= ceiling
     default:
       return true
   }
@@ -125,132 +139,128 @@ export function generateLevel(seed: number, options: GenerateOptions = {}): Gene
     ;[beats[0], beats[firstSkill]] = [beats[firstSkill], beats[0]]
   }
 
-  const midY = Math.floor(o.height / 2)
   let x = 0
-  let gy = rng.int(6, midY)
+  let dir: 1 | -1 = 1
+  let gy = rng.int(5, 8)
+  // Upward beats must not chew into the band above, or a later fold overwrites an
+  // earlier one and seals the route. This is the floor of the band overhead.
+  let ceiling = 2
   const placed: Beat[] = []
 
   // Opening platform, and the entrance above it.
-  const firstWidth = rng.int(7, 11)
+  const firstWidth = rng.int(7, 10)
   platform(g, x, x + firstWidth - 1, gy)
-  const entranceX = x + 2
-  g[Math.max(0, gy - 4)][entranceX] = 'E'
+  g[Math.max(0, gy - 4)][x + 2] = 'E'
   x += firstWidth
 
   for (const wanted of beats) {
-    const segWidth = rng.int(6, 10)
-    // Stop cleanly if the next beat would not fit — a short honest level beats a
-    // clipped one.
-    if (x + segWidth + 6 >= o.width) break
+    const segWidth = rng.int(6, 9)
+
+    // Out of width in the current direction? Fold the route down a band and reverse.
+    // The driftling walks off the end of this platform, falls onto the band below,
+    // carries on to the boundary wall, and turns — so the level doubles back on
+    // itself instead of running off the edge of the world.
+    const room = dir > 0 ? o.width - 1 - x : x
+    if (room < segWidth + 2) {
+      if (gy + 14 >= o.height - 6) break // no vertical room left; finish here
+      // Bands need real separation: a climb or a dig spans several rows, and if the
+      // next band sits too close the two overwrite each other.
+      const dropTo = gy + rng.int(9, 12)
+      const edge = dir > 0 ? o.width - 1 : 0
+      const xs = Math.min(x, edge)
+      const xe = Math.max(x, edge)
+      platform(g, xs, xe, dropTo)
+      ceiling = gy + 4
+      gy = dropTo
+      dir = (dir * -1) as 1 | -1
+      // Resume from the far end of the landing strip, travelling the new way.
+      x = dir > 0 ? xe + 1 : xs - 1
+      placed.push('drop')
+      continue
+    }
 
     // A beat needs vertical room to be built as intended. Rather than silently
     // degrading a demand into free walking — which is what made levels drift down to
     // a single late decision — substitute another demand that does fit here.
-    const beat = fits(wanted, gy, o.height)
+    const feasible = SKILL_BEATS.filter((b) => fits(b, gy, o.height, ceiling))
+    const beat = fits(wanted, gy, o.height, ceiling)
       ? wanted
-      : (SKILL_BEATS.filter((b) => fits(b, gy, o.height))[
-          rng.int(0, Math.max(0, SKILL_BEATS.filter((b) => fits(b, gy, o.height)).length - 1))
-        ] ?? wanted)
+      : feasible.length > 0
+        ? feasible[rng.int(0, feasible.length - 1)]
+        : 'drop'
+
+    // Segment bounds in world coordinates, whichever way we are travelling.
+    const xs = dir > 0 ? x : x - segWidth + 1
+    const xe = dir > 0 ? x + segWidth - 1 : x
 
     switch (beat) {
       case 'step': {
-        // A one-cell rise: walkable without any skill.
-        const ny = Math.max(2, gy - 1)
-        platform(g, x, x + segWidth - 1, ny)
+        const ny = Math.max(ceiling, gy - 1)
+        platform(g, xs, xe, ny)
         gy = ny
         break
       }
       case 'drop': {
-        // A safe fall onto the next platform.
         const ny = Math.min(o.height - 5, gy + rng.int(2, RULES.splatHeight - 2))
-        platform(g, x, x + segWidth - 1, ny)
+        platform(g, xs, xe, ny)
         gy = ny
         break
       }
       case 'float': {
         // Deliberately further than a driftling survives unaided.
-        const ny = Math.min(o.height - 5, gy + RULES.splatHeight + rng.int(2, 5))
-        if (ny <= gy + RULES.splatHeight) {
-          // No room to make it lethal — fall back to a plain drop.
-          platform(g, x, x + segWidth - 1, ny)
-          gy = ny
-          placed.push('drop')
-          x += segWidth
-          continue
-        }
-        platform(g, x, x + segWidth - 1, ny)
+        const ny = Math.min(o.height - 5, gy + RULES.splatHeight + rng.int(2, 4))
+        platform(g, xs, xe, ny)
         gy = ny
         break
       }
       case 'climb': {
-        // A sheer face too tall to step up: only a climber gets over it.
-        const rise = rng.int(3, 6)
-        const ny = Math.max(2, gy - rise)
-        if (gy - ny < 2) {
-          platform(g, x, x + segWidth - 1, gy)
-          placed.push('step')
-          x += segWidth
-          continue
-        }
-        // Solid from the new surface all the way down past the old one, so its left
-        // face is a continuous wall.
-        fill(g, x, ny, x + segWidth - 1, gy + 2, '#')
+        // A sheer face too tall to step up. The whole segment is solid from the new
+        // surface down past the old one, so whichever side we approach from is a wall.
+        const ny = Math.max(ceiling, gy - rng.int(3, 6))
+        fill(g, xs, ny, xe, gy + 2, '#')
         gy = ny
         break
       }
       case 'wall': {
-        // Same level, but an earth barrier tall enough to defeat a step-up.
-        //
-        // The lip matters: a climber is a *permanent* trait, so without an overhang a
-        // single climber granted for some other beat would sail over this one too,
-        // and the barrier would force nothing. An overhang above the climbing column
-        // stops a climber dead (it cannot mount past a ceiling) while leaving the
-        // basher's tunnel at head height untouched.
+        // An earth barrier two cells ahead, tall enough to defeat a step-up, with a
+        // steel lip so a climber cannot mount it — otherwise a climber granted for
+        // some other beat would clear this one too and force nothing.
         const t = rng.int(2, 3)
-        platform(g, x, x + segWidth - 1, gy)
-        fill(g, x + 2, gy - 3, x + 2 + t - 1, gy - 1, '#')
-        fill(g, x + 1, gy - 4, x + 2 + t, gy - 4, '=')
+        platform(g, xs, xe, gy)
+        const b0 = x + 2 * dir
+        const b1 = b0 + (t - 1) * dir
+        fill(g, Math.min(b0, b1), gy - 3, Math.max(b0, b1), gy - 1, '#')
+        fill(g, Math.min(b0 - dir, b1 + dir), gy - 4, Math.max(b0 - dir, b1 + dir), gy - 4, '=')
         break
       }
       case 'dig': {
-        // A pit the driftling drops INTO, with steel walls it cannot climb out of and
-        // earth underfoot — so the only way on is down, forcing a digger.
-        //
-        // The entry point matters: it falls straight down at the first column past the
-        // previous platform, so that column must stay open. The left wall therefore
-        // sits *under* the previous platform, not across the entrance.
-        const floorY = Math.min(o.height - 8, gy + rng.int(3, 5))
-        if (floorY <= gy + 2 || floorY + 10 >= o.height) {
-          // Not enough headroom below — fall back to a plain drop.
-          const ny = Math.min(o.height - 5, gy + 2)
-          platform(g, x, x + segWidth - 1, ny)
-          gy = ny
-          placed.push('drop')
-          x += segWidth
-          continue
-        }
-        // Chamber floor (thick, so digging takes a while), spanning the entry column.
-        platform(g, x - 1, x + segWidth - 1, floorY, 3)
-        // Walls rising from the floor. The left one is at x-1, tucked beneath the
-        // previous platform, leaving column x open to fall through.
-        fill(g, x - 1, floorY - 5, x - 1, floorY - 1, '=')
-        fill(g, x + segWidth - 1, floorY - 5, x + segWidth - 1, floorY - 1, '=')
-        // Landing platform below, reached by digging out.
-        const below = Math.min(o.height - 4, floorY + 6)
-        platform(g, x - 1, x + segWidth + 3, below)
-        gy = below
+        // A pit the driftling drops into, walled in steel so the only way on is down.
+        // The entry column must stay open, so the near wall sits one step back along
+        // the approach, tucked under the platform it just left.
+        const floorY = Math.min(o.height - 9, gy + rng.int(3, 5))
+        const near = x - dir
+        const far = dir > 0 ? xe : xs
+        const pitS = Math.min(near, far)
+        const pitE = Math.max(near, far)
+        platform(g, pitS, pitE, floorY, 3)
+        fill(g, near, floorY - 5, near, floorY - 1, '=')
+        fill(g, far, floorY - 5, far, floorY - 1, '=')
+        platform(g, pitS, pitE, Math.min(o.height - 4, floorY + 6))
+        gy = Math.min(o.height - 4, floorY + 6)
         break
       }
     }
 
     placed.push(beat)
-    x += segWidth
+    x += segWidth * dir
   }
 
-  // Closing platform with the exit on it.
-  const tailWidth = Math.max(5, Math.min(10, o.width - x - 1))
-  platform(g, x, x + tailWidth - 1, gy)
-  const exitX = Math.min(o.width - 2, x + tailWidth - 2)
+  // Closing platform with the exit on it, laid out in the direction of travel.
+  const tailWidth = Math.max(5, Math.min(9, dir > 0 ? o.width - 1 - x : x))
+  const tailS = dir > 0 ? x : x - tailWidth + 1
+  const tailE = dir > 0 ? x + tailWidth - 1 : x
+  platform(g, tailS, tailE, gy)
+  const exitX = Math.max(1, Math.min(o.width - 2, dir > 0 ? tailE - 1 : tailS + 1))
   g[gy - 1][exitX] = 'X'
 
   // Grant exactly the skills the beats demand — no spares. If a beat turns out not

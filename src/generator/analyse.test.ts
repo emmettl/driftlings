@@ -90,8 +90,8 @@ describe('the quality bar', () => {
   })
 
   it('every accepted level clears every published threshold', () => {
-    for (let seed = 1; seed <= 25; seed++) {
-      const v = verify(generateLevel(seed))
+    for (let seed = 1; seed <= 20; seed++) {
+      const v = verify(generateLevel(seed, { width: 30, height: 30, skillBeats: 3 }))
       if (!v.ok) continue
       const a = v.analysis!
       expect(a.skillsUsed).toBeGreaterThanOrEqual(2)

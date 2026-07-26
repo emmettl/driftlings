@@ -48,7 +48,9 @@ const NO_ANALYSIS: Analysis = {
 }
 
 export function analyse(spec: LevelSpec): Analysis {
-  const base = solve(spec, { maxExpansions: 300_000, enumerate: 24 })
+  // Enumeration is the expensive half of this. Ten distinct routes is well past the
+  // point where a level counts as mushy, so there is nothing to learn by finding more.
+  const base = solve(spec, { maxExpansions: 300_000, enumerate: 10 })
   if (!base.solved) return NO_ANALYSIS
 
   const steps = Math.max(1, base.steps)
