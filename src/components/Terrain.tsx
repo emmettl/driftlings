@@ -18,6 +18,12 @@ import type { World } from '../sim/types'
 // runs — the same level always looks the same.
 
 const DEPTH = 3.4
+/**
+ * The plane every block's front face sits on. Blocks vary in depth BACKWARDS from
+ * here rather than jutting forwards: driftlings are drawn just in front of this
+ * plane, and letting the rock grow towards the camera buried them inside it.
+ */
+const FRONT = 1.55
 
 // The rock changes character with altitude, so a descent reads as going somewhere
 // rather than as more of the same: cool daylit blue near the surface, violet through
@@ -112,10 +118,10 @@ export function Terrain({ world, revision }: { world: World; revision: number })
 
     blocks.forEach((blk, i) => {
       const steel = blk.kind === CELL.STEEL
-      // Blocks jut forward by varying amounts so the cut face has relief.
-      const jut = blk.n * 0.7
-      dummy.position.set(blk.x, -blk.y, (jut - 0.35) / 2)
-      dummy.scale.set(1, 1, DEPTH + jut)
+      // Blocks vary in depth, extending back from the shared front plane.
+      const depth = DEPTH + blk.n * 1.4
+      dummy.position.set(blk.x, -blk.y, FRONT - depth / 2)
+      dummy.scale.set(1, 1, depth)
       dummy.rotation.set(0, 0, 0)
       dummy.updateMatrix()
       b.setMatrixAt(i, dummy.matrix)
@@ -133,8 +139,9 @@ export function Terrain({ world, revision }: { world: World; revision: number })
 
       if (blk.top) {
         // A bright lip along every walkable surface.
-        dummy.position.set(blk.x, -blk.y + 0.46, (jut - 0.35) / 2 + 0.15)
-        dummy.scale.set(1, 0.12, DEPTH + jut - 0.3)
+        const crownDepth = depth - 0.25
+        dummy.position.set(blk.x, -blk.y + 0.46, FRONT - crownDepth / 2 + 0.06)
+        dummy.scale.set(1, 0.12, crownDepth)
         dummy.updateMatrix()
         cr.setMatrixAt(crowns, dummy.matrix)
         cr.setColorAt(crowns, steel ? PALETTE.steelTop : strata.crown)
@@ -144,7 +151,7 @@ export function Terrain({ world, revision }: { world: World; revision: number })
         const g = hash(blk.x, blk.y, 3)
         if (!steel && g > 0.86) {
           const h = 0.25 + g * 0.5
-          dummy.position.set(blk.x + (g - 0.86) * 2 - 0.15, -blk.y + 0.5 + h / 2, DEPTH / 2 - 0.4)
+          dummy.position.set(blk.x + (g - 0.86) * 2 - 0.15, -blk.y + 0.5 + h / 2, FRONT - 0.5)
           dummy.scale.set(0.16, h, 0.16)
           dummy.rotation.set(0, 0, (g - 0.9) * 1.2)
           dummy.updateMatrix()

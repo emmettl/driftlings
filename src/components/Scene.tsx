@@ -3,11 +3,19 @@ import { ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import type { World } from '../sim/types'
 import { setViewport } from '../game/viewport'
 import { Backdrop } from './Backdrop'
+import { Markers } from './Markers'
 import { Terrain } from './Terrain'
 import { Driftlings } from './Driftlings'
 import { useGame } from '../store'
 
-const TICK_HZ = 30 // sim ticks per second at speed 1
+// Simulation ticks per real second at 1x. This is presentation only — the rules are
+// counted in ticks, so changing it alters the pace on screen without touching the
+// simulation's semantics, the solver, or any test.
+//
+// A driftling walks one cell every RULES.walkPeriod ticks, so this is really "how
+// briskly do they stroll". 30Hz was a scurry; this is a wander, which suits the tone
+// and gives you time to think before something walks off a ledge.
+const TICK_HZ = 16
 
 function Ticker() {
   const acc = useRef(0)
@@ -120,6 +128,7 @@ export function Scene() {
       <pointLight position={[world.width / 2, -world.height / 2, 14]} intensity={90} color="#4be0ff" />
 
       <Backdrop width={world.width} height={world.height} />
+      <Markers world={world} />
 
       <group onPointerDown={onPick}>
         <Driftlings world={world} revision={revision} />
