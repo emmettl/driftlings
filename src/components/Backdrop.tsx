@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Color } from 'three'
+import { quality } from '../game/device'
 
 // Distant silhouettes behind the playfield. They exist for parallax: the camera
 // translates as it follows the action, and geometry further back drifts across the
@@ -18,7 +19,9 @@ export function Backdrop({ width, height }: { width: number; height: number }) {
       { z: -22, count: 10, w: 6, h: 26, color: new Color('#1b2049'), scale: 1.25 },
       { z: -46, count: 8, w: 10, h: 36, color: new Color('#151a38'), scale: 1.6 },
       { z: -78, count: 6, w: 16, h: 52, color: new Color('#101228'), scale: 2.2 },
-    ].map((layer, li) => ({
+    ]
+      .slice(0, quality.backdropLayers)
+      .map((layer, li) => ({
       ...layer,
       pillars: Array.from({ length: layer.count }, (_, i) => {
         const r = hash(i, li)
@@ -30,7 +33,7 @@ export function Backdrop({ width, height }: { width: number; height: number }) {
           h: layer.h * (0.6 + r2 * 0.9),
         }
       }),
-    }))
+      }))
   }, [width, height])
 
   return (

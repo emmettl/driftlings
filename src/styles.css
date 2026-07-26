@@ -306,3 +306,74 @@ canvas {
   letter-spacing: 2px;
   opacity: 0.45;
 }
+
+/* ---------- Phones ---------- */
+@media (max-width: 760px), (max-height: 480px) {
+  .hud {
+    padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 8px
+      calc(12px + env(safe-area-inset-left));
+  }
+
+  .stat {
+    font-size: 11px;
+  }
+  .stat b {
+    font-size: 14px;
+  }
+  .title {
+    font-size: 9px;
+    letter-spacing: 2px;
+  }
+  .sub {
+    font-size: 9px;
+  }
+
+  /* Apple's ~44px guidance: these are the controls you actually poke mid-panic. */
+  .hud button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .skills {
+    gap: 6px;
+    bottom: calc(30px + env(safe-area-inset-bottom));
+  }
+
+  .skill {
+    min-width: 56px;
+    min-height: 54px;
+    padding: 7px 4px;
+  }
+  .skill .l {
+    font-size: 7px;
+  }
+
+  .minimap {
+    right: calc(8px + env(safe-area-inset-right));
+    bottom: calc(92px + env(safe-area-inset-bottom));
+    max-width: 26vw;
+    max-height: 18vh;
+  }
+
+  .game-title {
+    letter-spacing: 2px;
+  }
+  .btn-start {
+    font-size: 13px;
+    padding: 16px 32px;
+  }
+}
+
+/* Landscape phones are short: pull the furniture in tight. */
+@media (max-height: 430px) {
+  .skills {
+    bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+  .hint {
+    display: none;
+  }
+  .minimap {
+    bottom: calc(70px + env(safe-area-inset-bottom));
+    max-height: 22vh;
+  }
+}

@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { Color, InstancedMesh, Object3D } from 'three'
 import { CELL } from '../sim/types'
+import { quality } from '../game/device'
 import type { World } from '../sim/types'
 
 // The level is a cut-away slab, and it is made of two substances that behave very
@@ -221,7 +222,8 @@ export function Terrain({ world, revision }: { world: World; revision: number })
       for (const [ex, ey] of edges) {
         for (let k = 0; k < 3; k++) {
           const g = hash(blk.x + k * 7, blk.y + k * 13, 31 + ex * 3 + ey * 5)
-          if (g < 0.45) continue
+          // Scree is the bulk of the instance count, so it thins out first on a phone.
+          if (g < 1 - 0.55 * quality.terrainDetail) continue
           const s = 0.09 + g * 0.17
           d.position.set(
             blk.x + ex * 0.92 + (ex === 0 ? (g - 0.5) * 0.8 : (g - 0.5) * 0.15),
