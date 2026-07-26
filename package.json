@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "oxlint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "curate": "esbuild tools/curate.mts --bundle --platform=node --format=esm --outfile=.build/curate.mjs --log-level=warning && node .build/curate.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -26,6 +27,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.185.1",
     "@vitejs/plugin-react": "^6.0.4",
+    "esbuild": "^0.28.1",
     "oxlint": "^1.75.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.5",

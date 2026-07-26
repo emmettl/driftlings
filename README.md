@@ -152,6 +152,48 @@ on average, ~680 ms worst case**; at 46×56 the same search took 870 ms and the 
 suite went from 7 s to 212 s. The suite therefore exercises small levels, and the
 defaults are chosen to keep generation interactive.
 
+## The crowd, not just the pioneer
+
+The solver proves *one* driftling can reach the exit. The level is won by saving a
+**quota**. Those are different claims, and for a while only the first was checked —
+releasing the full crowd on levels the gate had accepted showed **0 of 14 were
+winnable**. The pioneer got home; the other nine splatted or milled about forever.
+
+The cause was skill accounting, not the simulation. Terrain skills change the level,
+so one bash serves everyone — the tunnel stays open. **Climb and float are
+per-driftling traits**, and granting the single copy the pioneer's route needed left
+the rest of the crowd with no way down a lethal drop. Traits are now stocked per head,
+while "forcing" still counts the route's needs so the shortcut check stays meaningful.
+`solver/crowd.ts` releases everyone through the real tick-based sim, and a level that
+cannot deliver a crowd is rejected as `unwinnable`. Accepted levels now save 10/10.
+
+## Curating offline
+
+Generating a good level costs a few hundred milliseconds. That is tolerable for a
+button press, but it capped how much compute could be spent *judging* a level — and
+level size, which drives solver cost, was being chosen to keep the browser responsive
+rather than to make good levels.
+
+`npm run curate` moves that offline: it fans candidates across cores and ships the best
+as a static pack.
+
+```bash
+npm run curate -- --candidates 2000 --keep 40
+# curating 2000 candidates across 13 cores…
+# accepted 159/2000 (8%) in 17.4s — 115 candidates/sec
+```
+
+That is ~13× the single-threaded rate, and the game now loads a curated level
+instantly instead of freezing the UI thread. Levels are scored on a composite of the
+design metrics (forcedness, number of decisions, how early the first one lands, spread,
+crowd survival) and shipped easiest-first.
+
+**It runs the same TypeScript simulation and solver as the game, in Node.** Porting
+them to Swift or Python for speed would buy a constant factor and reintroduce exactly
+the divergence this project is built to avoid — a curator certifying levels against
+rules the game does not actually have. Parallelism was the win here, not the language:
+the work is embarrassingly parallel because every seed is independent.
+
 ## Where this is going
 
 1. ~~Deterministic simulation + a hand-made level~~ ✅

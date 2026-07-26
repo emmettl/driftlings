@@ -5,6 +5,12 @@ import type { SkillId, World } from './sim/types'
 import { firstLevel } from './levels/handmade'
 import { findLevel } from './generator/verify'
 import type { LevelSpec } from './sim/world'
+import pack from './levels/pack.json'
+
+// Levels are curated offline (npm run curate) and shipped as a pack, so picking one
+// is instant. Generating in the browser meant a several-hundred-millisecond freeze on
+// the UI thread, and capped level size at whatever stayed interactive.
+const PACK: { seed: number; spec: LevelSpec }[] = (pack.levels ?? []) as never
 
 // The world is mutated in place by the sim (the solver will fork it thousands of
 // times, so it must stay cheap). React therefore can't diff it — `revision` is the
@@ -64,14 +70,27 @@ export const useGame = create<GameState>()((set, get) => ({
 
   newGenerated: () => {
     set({ generating: true })
-    // Search seeds until one passes the solver's gate, so a level is never served
-    // to the player without a proof that it can actually be finished.
-    const startSeed = (get().seed ?? 0) + 1
-    const found = findLevel({ startSeed, attempts: 80 })
-    const spec = found.level?.spec ?? firstLevel
+    const current = get().seed
+    let spec: LevelSpec
+    let seed: number | null
+
+    if (PACK.length > 0) {
+      // Walk the curated pack, which is ordered easiest-first.
+      const at = PACK.findIndex((l) => l.seed === current)
+      const next = PACK[(at + 1) % PACK.length]
+      spec = next.spec
+      seed = next.seed
+    } else {
+      // No pack built yet: fall back to generating live, which is slower but keeps
+      // the game playable from a fresh clone.
+      const found = findLevel({ startSeed: (current ?? 0) + 1, attempts: 40 })
+      spec = found.level?.spec ?? firstLevel
+      seed = found.level?.seed ?? null
+    }
+
     set({
       spec,
-      seed: found.level?.seed ?? null,
+      seed,
       world: createWorld(spec),
       revision: 0,
       selected: null,
