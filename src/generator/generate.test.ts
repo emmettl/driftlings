@@ -64,6 +64,7 @@ describe('the quality gate', () => {
       seed: 0,
       beats: [],
       intendedSkillCount: 0,
+      traits: [],
       spec: {
         name: 'flat',
         rows: ['..........', '.E........', '.......X..', '##########'],
@@ -76,11 +77,17 @@ describe('the quality gate', () => {
     expect(verify(flat).rejection).toBe('trivial')
   })
 
-  it('grants only one climber however many beats want climbing', () => {
+  it('stocks per-driftling traits per head, but counts them once as forcing', () => {
     for (let seed = 1; seed <= 40; seed++) {
-      const { spec } = generateLevel(seed, { skillBeats: 4 })
-      expect(spec.skills.climber ?? 0).toBeLessThanOrEqual(1)
-      expect(spec.skills.floater ?? 0).toBeLessThanOrEqual(1)
+      const lvl = generateLevel(seed, { ...SMALL, skillBeats: 4 })
+      for (const trait of ['climber', 'floater'] as const) {
+        const granted = lvl.spec.skills[trait] ?? 0
+        // Either the level does not use the trait, or everyone can have one —
+        // granting the route's single copy would strand the rest of the crowd.
+        expect(granted === 0 || granted === lvl.spec.total).toBe(true)
+      }
+      // Forcing is still counted per route, so the shortcut check stays meaningful.
+      expect(lvl.intendedSkillCount).toBeLessThanOrEqual(lvl.beats.length)
     }
   })
 })

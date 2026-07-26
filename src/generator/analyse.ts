@@ -1,6 +1,7 @@
 import { solve } from '../solver/solve'
 import type { LevelSpec } from '../sim/world'
 import { SKILL_IDS, type SkillId } from '../sim/types'
+import { PERMANENT } from './generate'
 
 // "Solvable" is a low bar. These are the measurements that try to get at whether a
 // level is any *good* — the questions a designer would ask, asked mechanically.
@@ -72,10 +73,11 @@ export function analyse(spec: LevelSpec): Analysis {
   for (const s of SKILL_IDS) {
     const granted = spec.skills[s] ?? 0
     if (granted <= 0) continue
-    const without: LevelSpec = {
-      ...spec,
-      skills: { ...spec.skills, [s]: granted - 1 },
-    }
+    // Per-driftling traits are stocked per head so the whole crowd can follow, so
+    // taking one away proves nothing — ask whether the level needs the trait at all.
+    // For terrain skills, taking one away is exactly the question: is this a spare?
+    const reduced = PERMANENT.has(s) ? 0 : granted - 1
+    const without: LevelSpec = { ...spec, skills: { ...spec.skills, [s]: reduced } }
     if (solve(without, { maxExpansions: 200_000 }).solved) slack.push(s)
     else critical.push(s)
   }

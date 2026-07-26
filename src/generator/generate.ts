@@ -113,8 +113,10 @@ export interface GeneratedLevel {
   spec: LevelSpec
   seed: number
   beats: Beat[]
-  /** Skills granted, i.e. the number the solver should be forced to spend. */
+  /** How many skills the route forces — not the stock granted for the crowd. */
   intendedSkillCount: number
+  /** Per-driftling traits this level hands out, which every driftling needs. */
+  traits: SkillId[]
 }
 
 export function generateLevel(seed: number, options: GenerateOptions = {}): GeneratedLevel {
@@ -269,19 +271,34 @@ export function generateLevel(seed: number, options: GenerateOptions = {}): Gene
   // Climber and floater are permanent traits: one grant covers every such beat in the
   // level, so they are counted once however many beats want them. Granting one each
   // per beat would make the level look under-solved and be rejected as a shortcut.
-  const skills: Partial<Record<SkillId, number>> = {}
+  //
+  // Two kinds of skill, and the difference decides how many to grant:
+  //   - terrain skills (bash, dig) change the level itself, so one use serves the
+  //     whole crowd — the tunnel stays open behind the pioneer.
+  //   - traits (climb, float) attach to a single driftling, so granting the one the
+  //     pioneer's route needs leaves the other nine to splat. They are granted per
+  //     head, or the level is unwinnable however well it solves.
+  const routeSkills: Partial<Record<SkillId, number>> = {}
   for (const b of placed) {
     const s = BEAT_SKILL[b]
     if (!s) continue
-    if (PERMANENT.has(s)) skills[s] = 1
-    else skills[s] = (skills[s] ?? 0) + 1
+    if (PERMANENT.has(s)) routeSkills[s] = 1
+    else routeSkills[s] = (routeSkills[s] ?? 0) + 1
   }
-  const intendedSkillCount = Object.values(skills).reduce((a, b) => a + b, 0)
+  // Forcing is a property of the route, so it counts the route's needs, not the
+  // stock handed out for the crowd.
+  const intendedSkillCount = Object.values(routeSkills).reduce((a, b) => a + b, 0)
+
+  const skills: Partial<Record<SkillId, number>> = { ...routeSkills }
+  for (const s of PERMANENT) {
+    if ((skills[s] ?? 0) > 0) skills[s] = o.total
+  }
 
   return {
     seed,
     beats: placed,
     intendedSkillCount,
+    traits: [...PERMANENT].filter((s) => (routeSkills[s] ?? 0) > 0),
     spec: {
       name: `Drift ${seed}`,
       rows: g.map((r) => r.join('')),

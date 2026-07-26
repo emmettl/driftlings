@@ -84,7 +84,7 @@ describe('the quality bar', () => {
       [pad + '....', '.E' + '.'.repeat(42), pad + '.#..', pad + '.#X.', '#'.repeat(44)],
       { basher: 1 },
     )
-    const v = verify({ seed: 0, beats: [], intendedSkillCount: 1, spec })
+    const v = verify({ seed: 0, beats: [], intendedSkillCount: 1, traits: [], spec })
     // Either too few decisions or too late a decision — both are the bar working.
     expect(['thin', 'back-loaded']).toContain(v.rejection)
   })

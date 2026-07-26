@@ -1,6 +1,7 @@
 import { solve, type SolveResult } from '../solver/solve'
 import { replay } from '../solver/replay'
 import { analyse, type Analysis } from './analyse'
+import { runCrowd, type CrowdResult } from '../solver/crowd'
 import { generateLevel, type GenerateOptions, type GeneratedLevel } from './generate'
 
 // The generator builds levels it *believes* are solvable. This is where that belief
@@ -16,6 +17,7 @@ export type Rejection =
   | 'thin' // only one decision in the whole level
   | 'back-loaded' // nothing to do until most of the level is behind you
   | 'mushy' // so many routes work that no choice matters
+  | 'unwinnable' // one driftling can finish, but the quota never can
 
 export interface QualityBar {
   /** Fewer decisions than this and it is a walk, not a puzzle. */
@@ -24,12 +26,18 @@ export interface QualityBar {
   maxFirstDecisionAt: number
   /** More distinct minimum-skill routes than this and nothing is really forced. */
   maxAlternatives: number
+  /**
+   * The crowd, not just the pioneer, must get home. A level where only the one
+   * driftling the solver traced can finish is not a level.
+   */
+  minSaved: number
 }
 
 export const DEFAULT_BAR: QualityBar = {
   minSkills: 2,
   maxFirstDecisionAt: 0.5,
   maxAlternatives: 6,
+  minSaved: 3,
 }
 
 export interface Verdict {
@@ -42,6 +50,8 @@ export interface Verdict {
   result: SolveResult
   /** Design measurements, present once the level is known to be solvable. */
   analysis?: Analysis
+  /** What actually happens when the whole crowd is released. */
+  crowd?: CrowdResult
 }
 
 export function verify(level: GeneratedLevel, bar: QualityBar = DEFAULT_BAR): Verdict {
@@ -76,7 +86,17 @@ export function verify(level: GeneratedLevel, bar: QualityBar = DEFAULT_BAR): Ve
     return { ...scored, ok: false, rejection: 'mushy' }
   }
 
-  return { ...scored, ok: true }
+  // Finally: release everyone. The solver only ever proved a single route, and a
+  // level is won by a quota — those are different claims, and the difference is
+  // exactly where per-driftling traits and hazards bite.
+  const crowd = runCrowd(level.spec, result.plan, { autoTraits: level.traits })
+  const withCrowd = { ...scored, crowd }
+  if (crowd.saved < bar.minSaved) return { ...withCrowd, ok: false, rejection: 'unwinnable' }
+
+  // Ask for what the level can actually deliver, keeping a little slack for mistakes.
+  level.spec.quota = Math.max(1, crowd.saved - 1)
+
+  return { ...withCrowd, ok: true }
 }
 
 export interface SearchOptions extends GenerateOptions {
