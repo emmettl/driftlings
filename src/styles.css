@@ -202,3 +202,16 @@ canvas {
   color: #04202a;
   cursor: pointer;
 }
+
+.seedtag {
+  opacity: 0.5;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+.again.alt {
+  margin-left: 8px;
+  background: transparent;
+  color: var(--cyan);
+  border: 1px solid rgba(75, 224, 255, 0.5);
+}

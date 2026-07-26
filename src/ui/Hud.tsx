@@ -1,6 +1,5 @@
 import { SKILL_IDS } from '../sim/types'
 import { useGame } from '../store'
-import { firstLevel } from '../levels/handmade'
 
 const LABEL: Record<string, string> = {
   climber: 'CLIMB',
@@ -20,6 +19,10 @@ export function Hud() {
   const speed = useGame((s) => s.speed)
   const setSpeed = useGame((s) => s.setSpeed)
   const reset = useGame((s) => s.reset)
+  const spec = useGame((s) => s.spec)
+  const seed = useGame((s) => s.seed)
+  const generating = useGame((s) => s.generating)
+  const newGenerated = useGame((s) => s.newGenerated)
 
   const out = world.saved + world.lost
 
@@ -28,17 +31,23 @@ export function Hud() {
       <div className="hud">
         <div>
           <div className="stat">
-            SAVED <b>{world.saved}</b> / {firstLevel.quota}
+            SAVED <b>{world.saved}</b> / {spec.quota}
           </div>
           <div className="sub">
             out {out} of {world.total} · lost {world.lost}
           </div>
         </div>
-        <div className="title">{firstLevel.name}</div>
+        <div className="title">
+          {spec.name}
+          {seed !== null && <span className="seedtag"> · seed {seed}</span>}
+        </div>
         <div className="right">
           <button onClick={togglePause}>{paused ? '▶' : '❚❚'}</button>
           <button onClick={() => setSpeed(speed === 1 ? 3 : 1)}>{speed}×</button>
           <button onClick={reset}>↻</button>
+          <button onClick={newGenerated} disabled={generating} title="generate a new level">
+            {generating ? '…' : '✦'}
+          </button>
         </div>
       </div>
 
@@ -66,12 +75,15 @@ export function Hud() {
       {world.finished && (
         <div className="end">
           <div className="end-card">
-            <h2>{world.saved >= firstLevel.quota ? 'LEVEL CLEAR' : 'NOT ENOUGH SAVED'}</h2>
+            <h2>{world.saved >= spec.quota ? 'LEVEL CLEAR' : 'NOT ENOUGH SAVED'}</h2>
             <p>
               {world.saved} saved · {world.lost} lost
             </p>
             <button className="again" onClick={reset}>
               TRY AGAIN
+            </button>
+            <button className="again alt" onClick={newGenerated}>
+              NEW LEVEL
             </button>
           </div>
         </div>
