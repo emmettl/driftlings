@@ -46,6 +46,12 @@ function Rig({ world }: { world: World }) {
   const panned = useGame((s) => s.focus)
   // Smoothed focus, so the camera eases after the action instead of snapping to it.
   const focus = useRef({ x: world.width / 2, y: -world.height / 2, d: 40 })
+  // Banking. The camera always eases toward its target, so how far it is LAGGING
+  // behind where you have pointed is already an inertia signal — no need to measure
+  // drag velocity separately. That lag is turned into a slight roll and a slight
+  // orbit, so the level leans into the movement and settles when you stop, with the
+  // backdrop parallaxing against it.
+  const lean = useRef({ roll: 0, yaw: 0 })
 
   useFrame((_, dt) => {
     const aspect = size.width / Math.max(1, size.height)
@@ -93,13 +99,36 @@ function Rig({ world }: { world: World }) {
 
     // Exponential smoothing, frame-rate independent.
     const k = 1 - Math.pow(0.0015, Math.min(dt, 0.1))
-    focus.current.x += (targetX - focus.current.x) * k
-    focus.current.y += (targetY - focus.current.y) * k
+    const lagX = targetX - focus.current.x
+    const lagY = targetY - focus.current.y
+    focus.current.x += lagX * k
+    focus.current.y += lagY * k
     focus.current.d += (targetDist - focus.current.d) * k
 
+    // The lean chases the lag on its own, slower spring, so it builds as you drag and
+    // eases back afterwards rather than snapping with the camera.
+    const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v))
+    const lk = 1 - Math.pow(0.02, Math.min(dt, 0.1))
+    // Roll is the effect: the map tilts about the view axis, leaning into the drag.
+    // Kept small — it should be felt rather than noticed, and a big roll makes a
+    // side-on puzzle harder to read for no gain.
+    lean.current.roll += (clamp(-lagX * 0.006, 0.05) - lean.current.roll) * lk
+    // A smaller orbit rides along, just enough that the backdrop shifts against the
+    // level and the tilt reads as a viewpoint rather than a rotated picture.
+    lean.current.yaw += (clamp(lagX * 0.002, 0.022) - lean.current.yaw) * lk
+
     const f = focus.current
-    camera.position.set(f.x, f.y + f.d * 0.05, f.d)
+    // Orbit the focus by the lean, so the tilt is a real change of viewpoint — the
+    // backdrop shifts against the level — rather than the picture merely rotating.
+    const yaw = lean.current.yaw
+    const height = f.d * 0.05
+    camera.position.set(
+      f.x + Math.sin(yaw) * f.d,
+      f.y + height - lagY * 0.012,
+      Math.cos(yaw) * f.d,
+    )
     camera.lookAt(f.x, f.y, 0)
+    camera.rotateZ(lean.current.roll)
 
     const halfH = f.d * t
     setViewport(f.x, -f.y, halfH * aspect, halfH)
