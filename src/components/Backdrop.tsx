@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { Color } from 'three'
 import { quality } from '../game/device'
+import type { Biome } from '../game/biomes'
 
 // Distant silhouettes behind the playfield. They exist for parallax: the camera
 // translates as it follows the action, and geometry further back drifts across the
@@ -12,13 +12,21 @@ function hash(i: number, salt: number): number {
   return n - Math.floor(n)
 }
 
-export function Backdrop({ width, height }: { width: number; height: number }) {
+export function Backdrop({
+  width,
+  height,
+  biome,
+}: {
+  width: number
+  height: number
+  biome: Biome
+}) {
   const layers = useMemo(() => {
     // Three sheets at increasing depth, each fading further toward the fog.
     return [
-      { z: -22, count: 10, w: 6, h: 26, color: new Color('#1b2049'), scale: 1.25 },
-      { z: -46, count: 8, w: 10, h: 36, color: new Color('#151a38'), scale: 1.6 },
-      { z: -78, count: 6, w: 16, h: 52, color: new Color('#101228'), scale: 2.2 },
+      { z: -22, count: 10, w: 6, h: 26, color: biome.backdrop[0], scale: 1.25 },
+      { z: -46, count: 8, w: 10, h: 36, color: biome.backdrop[1] ?? biome.backdrop[0], scale: 1.6 },
+      { z: -78, count: 6, w: 16, h: 52, color: biome.backdrop[2] ?? biome.backdrop[0], scale: 2.2 },
     ]
       .slice(0, quality.backdropLayers)
       .map((layer, li) => ({
@@ -34,7 +42,7 @@ export function Backdrop({ width, height }: { width: number; height: number }) {
         }
       }),
       }))
-  }, [width, height])
+  }, [width, height, biome])
 
   return (
     <group>

@@ -4,6 +4,7 @@ import type { World } from '../sim/types'
 import { setViewport } from '../game/viewport'
 import { setTickAlpha } from '../game/clock'
 import { smoothX, smoothY } from '../game/interpolate'
+import { biomeFor } from '../game/biomes'
 import { Backdrop } from './Backdrop'
 import { Markers } from './Markers'
 import { Terrain } from './Terrain'
@@ -161,6 +162,8 @@ export function Scene() {
   const world = useGame((s) => s.world)
   const revision = useGame((s) => s.revision)
   const applyTo = useGame((s) => s.applyTo)
+  const seed = useGame((s) => s.seed)
+  const biome = biomeFor(seed)
 
   const onPick = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
@@ -173,24 +176,28 @@ export function Scene() {
 
   return (
     <>
-      <color attach="background" args={['#0a0a1a']} />
-      <fog attach="fog" args={['#0a0a1a', world.width * 1.6, world.width * 4]} />
+      <color attach="background" args={[biome.sky.getHex()]} />
+      <fog attach="fog" args={[biome.sky.getHex(), world.width * 1.6, world.width * 4]} />
 
       <Rig world={world} />
       <Ticker />
 
       <ambientLight intensity={0.5} />
-      <hemisphereLight args={['#6a5cff', '#100e26', 0.9]} />
-      <directionalLight position={[12, 18, 22]} intensity={1.5} color="#ffd0f0" />
-      <pointLight position={[world.width / 2, -world.height / 2, 14]} intensity={90} color="#4be0ff" />
+      <hemisphereLight args={[biome.light.skyLight.getHex(), biome.light.groundLight.getHex(), 0.9]} />
+      <directionalLight position={[12, 18, 22]} intensity={1.5} color={biome.light.key.getHex()} />
+      <pointLight
+        position={[world.width / 2, -world.height / 2, 14]}
+        intensity={90}
+        color={biome.light.fill.getHex()}
+      />
 
-      <Backdrop width={world.width} height={world.height} />
+      <Backdrop width={world.width} height={world.height} biome={biome} />
       <Markers world={world} />
 
       <group onPointerDown={onPick}>
         <Driftlings world={world} revision={revision} />
       </group>
-      <Terrain world={world} revision={revision} />
+      <Terrain world={world} revision={revision} biome={biome} />
     </>
   )
 }

@@ -8,6 +8,7 @@ import { Terrain } from './Terrain'
 import { Driftlings } from './Driftlings'
 import { Backdrop } from './Backdrop'
 import { setTickAlpha } from '../game/clock'
+import { BIOMES, biomeFor } from '../game/biomes'
 
 // The title screen runs the real simulation on a sealed arena, so what you are
 // watching is genuine driftling behaviour rather than an animation of it — a crowd
@@ -40,6 +41,10 @@ function populatedArena() {
 
 export function AttractScene() {
   const [world, setWorld] = useState(populatedArena)
+  // A different biome each time the arena resets, so the title screen shows off the
+  // range rather than always being the same cave.
+  const [biomeIndex, setBiomeIndex] = useState(0)
+  const biome = biomeFor(biomeIndex)
   const acc = useRef(0)
   const revision = useRef(0)
   const [, forceRender] = useState(0)
@@ -71,6 +76,7 @@ export function AttractScene() {
 
       if (world.tick > RESET_AFTER) {
         setWorld(populatedArena())
+        setBiomeIndex((i) => (i + 1) % BIOMES.length)
         acc.current = 0
         return
       }
@@ -94,16 +100,16 @@ export function AttractScene() {
 
   return (
     <>
-      <color attach="background" args={['#0a0a1a']} />
-      <fog attach="fog" args={['#0a0a1a', world.width * 2, world.width * 5]} />
+      <color attach="background" args={[biome.sky.getHex()]} />
+      <fog attach="fog" args={[biome.sky.getHex(), world.width * 2, world.width * 5]} />
 
       <ambientLight intensity={0.55} />
-      <hemisphereLight args={['#6a5cff', '#100e26', 0.9]} />
-      <directionalLight position={[12, 18, 22]} intensity={1.4} color="#ffd0f0" />
-      <pointLight position={[centre.x, centre.y, 14]} intensity={70} color="#4be0ff" />
+      <hemisphereLight args={[biome.light.skyLight.getHex(), biome.light.groundLight.getHex(), 0.9]} />
+      <directionalLight position={[12, 18, 22]} intensity={1.4} color={biome.light.key.getHex()} />
+      <pointLight position={[centre.x, centre.y, 14]} intensity={70} color={biome.light.fill.getHex()} />
 
-      <Backdrop width={world.width} height={world.height} />
-      <Terrain world={world} revision={revision.current} />
+      <Backdrop width={world.width} height={world.height} biome={biome} />
+      <Terrain world={world} revision={revision.current} biome={biome} />
       <Driftlings world={world} revision={revision.current} />
     </>
   )

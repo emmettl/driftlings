@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react'
 import { Color, InstancedMesh, Object3D } from 'three'
 import { CELL } from '../sim/types'
 import { quality } from '../game/device'
+import { type Biome } from '../game/biomes'
 import type { World } from '../sim/types'
 
 // The level is a cut-away slab, and it is made of two substances that behave very
@@ -33,26 +34,21 @@ const DEPTH = 3.4
  */
 const FRONT = 1.55
 
-const STRATA = [
-  { surface: new Color('#5fd6ff'), body: new Color('#3f6ea8'), crown: new Color('#9beeff') },
-  { surface: new Color('#a071e8'), body: new Color('#4b3a86'), crown: new Color('#c9a6ff') },
-  { surface: new Color('#ff8f6b'), body: new Color('#7d3a52'), crown: new Color('#ffc38f') },
-]
-
-function strataAt(t: number) {
-  const scaled = Math.min(0.999, Math.max(0, t)) * (STRATA.length - 1)
+function strataAt(biome: Biome, t: number) {
+  const bands = biome.strata
+  const scaled = Math.min(0.999, Math.max(0, t)) * (bands.length - 1)
   const i = Math.floor(scaled)
   const f = scaled - i
-  const a = STRATA[i]
-  const b = STRATA[Math.min(STRATA.length - 1, i + 1)]
+  const a = bands[i]
+  const b = bands[Math.min(bands.length - 1, i + 1)]
   return {
     surface: a.surface.clone().lerp(b.surface, f),
     body: a.body.clone().lerp(b.body, f),
     crown: a.crown.clone().lerp(b.crown, f),
   }
 }
-
-const EARTH_DEEP = new Color('#0e1630')
+// Steel and its hazard trim never change with the biome: they are what tells you what
+// you cannot dig, and that promise has to look the same everywhere.
 const STEEL_PANEL = new Color('#8f86b8')
 const STEEL_BULK = new Color('#2a2547')
 const STEEL_RIVET = new Color('#cfc6ef')
@@ -75,7 +71,15 @@ interface Block {
   depthT: number
 }
 
-export function Terrain({ world, revision }: { world: World; revision: number }) {
+export function Terrain({
+  world,
+  revision,
+  biome,
+}: {
+  world: World
+  revision: number
+  biome: Biome
+}) {
   const earthBulk = useRef<InstancedMesh>(null)
   const earthPlates = useRef<InstancedMesh>(null)
   const scree = useRef<InstancedMesh>(null)
@@ -188,10 +192,10 @@ export function Terrain({ world, revision }: { world: World; revision: number })
       }
 
       // ---------- EARTH: rough and irregular ----------
-      const strata = strataAt(blk.depthT)
+      const strata = strataAt(biome, blk.depthT)
       const shade = Math.min(1, blk.buried / 5)
       const rock = (extra: number) => {
-        tint.copy(blk.top ? strata.surface : strata.body).lerp(EARTH_DEEP, shade)
+        tint.copy(blk.top ? strata.surface : strata.body).lerp(biome.deep, shade)
         return tint.multiplyScalar(0.8 + extra * 0.34)
       }
 
@@ -262,7 +266,7 @@ export function Terrain({ world, revision }: { world: World; revision: number })
           d.rotation.set(g * 1.7, g * 2.4, (g - 0.85) * 1.6)
           d.updateMatrix()
           cy.setMatrixAt(n.cy, d.matrix)
-          cy.setColorAt(n.cy, strata.surface.clone().lerp(EARTH_DEEP, 0.42))
+          cy.setColorAt(n.cy, strata.surface.clone().lerp(biome.deep, 0.42))
           n.cy += 1
         }
       }
@@ -284,7 +288,7 @@ export function Terrain({ world, revision }: { world: World; revision: number })
       m.instanceMatrix.needsUpdate = true
       if (m.instanceColor) m.instanceColor.needsUpdate = true
     }
-  }, [blocks])
+  }, [blocks, biome])
 
   const cells = world.width * world.height
   return (
