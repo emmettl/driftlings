@@ -1,5 +1,6 @@
 import { solve, type SolveResult } from '../solver/solve'
 import { replay } from '../solver/replay'
+import { analyse, type Analysis } from './analyse'
 import { generateLevel, type GenerateOptions, type GeneratedLevel } from './generate'
 
 // The generator builds levels it *believes* are solvable. This is where that belief
@@ -12,6 +13,24 @@ export type Rejection =
   | 'trivial' // reachable with no skills at all
   | 'shortcut' // a cheaper route than intended exists
   | 'replay-failed' // solver found a route the sim will not walk
+  | 'thin' // only one decision in the whole level
+  | 'back-loaded' // nothing to do until most of the level is behind you
+  | 'mushy' // so many routes work that no choice matters
+
+export interface QualityBar {
+  /** Fewer decisions than this and it is a walk, not a puzzle. */
+  minSkills: number
+  /** The first decision must arrive within this fraction of the route. */
+  maxFirstDecisionAt: number
+  /** More distinct minimum-skill routes than this and nothing is really forced. */
+  maxAlternatives: number
+}
+
+export const DEFAULT_BAR: QualityBar = {
+  minSkills: 2,
+  maxFirstDecisionAt: 0.5,
+  maxAlternatives: 6,
+}
 
 export interface Verdict {
   ok: boolean
@@ -21,9 +40,11 @@ export interface Verdict {
   /** Skills the solver actually needed. */
   required: number
   result: SolveResult
+  /** Design measurements, present once the level is known to be solvable. */
+  analysis?: Analysis
 }
 
-export function verify(level: GeneratedLevel): Verdict {
+export function verify(level: GeneratedLevel, bar: QualityBar = DEFAULT_BAR): Verdict {
   // Compare against the skills actually granted, not the beat count — climber and
   // floater are permanent, so several beats can share one grant.
   const intended = level.intendedSkillCount
@@ -43,13 +64,26 @@ export function verify(level: GeneratedLevel): Verdict {
   // the terrain left a way around it.
   if (result.skillsUsed < intended) return { ...base, ok: false, rejection: 'shortcut' }
 
-  return { ...base, ok: true }
+  // Correctness is settled; now ask whether it is any good.
+  const analysis = analyse(level.spec)
+  const scored = { ...base, analysis }
+
+  if (analysis.skillsUsed < bar.minSkills) return { ...scored, ok: false, rejection: 'thin' }
+  if (analysis.firstDecisionAt > bar.maxFirstDecisionAt) {
+    return { ...scored, ok: false, rejection: 'back-loaded' }
+  }
+  if (analysis.alternatives > bar.maxAlternatives) {
+    return { ...scored, ok: false, rejection: 'mushy' }
+  }
+
+  return { ...scored, ok: true }
 }
 
 export interface SearchOptions extends GenerateOptions {
   /** Seeds to try before giving up. */
   attempts?: number
   startSeed?: number
+  bar?: QualityBar
 }
 
 export interface SearchOutcome {
@@ -68,7 +102,7 @@ export function findLevel(options: SearchOptions = {}): SearchOutcome {
 
   for (let i = 0; i < attempts; i++) {
     const level = generateLevel(start + i, options)
-    const verdict = verify(level)
+    const verdict = verify(level, options.bar ?? DEFAULT_BAR)
     if (verdict.ok) return { level, verdict, attempts: i + 1, rejections }
     rejections[verdict.rejection ?? 'unknown'] = (rejections[verdict.rejection ?? 'unknown'] ?? 0) + 1
   }

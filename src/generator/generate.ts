@@ -71,6 +71,30 @@ function platform(g: Grid, xs: number, xe: number, gy: number, thickness = 3): v
   fill(g, xs, gy, xe, gy + thickness - 1, '#')
 }
 
+/**
+ * Whether a beat can be built at this height with the room available. Checked up
+ * front so a demand is swapped for another demand, never quietly downgraded into
+ * free walking.
+ */
+function fits(beat: Beat, gy: number, height: number): boolean {
+  switch (beat) {
+    case 'float':
+      // Needs a drop longer than a driftling survives, and floor to land on.
+      return gy + RULES.splatHeight + 2 <= height - 5
+    case 'climb':
+      // Needs headroom above for a face too tall to step up.
+      return gy - 3 >= 2
+    case 'dig':
+      // Needs a pit, its floor, and a landing platform beneath that.
+      return gy + 3 + 10 < height
+    case 'wall':
+      // Needs a little headroom for the barrier and its anti-climber lip.
+      return gy - 4 >= 1
+    default:
+      return true
+  }
+}
+
 export interface GeneratedLevel {
   spec: LevelSpec
   seed: number
@@ -84,15 +108,21 @@ export function generateLevel(seed: number, options: GenerateOptions = {}): Gene
   const rng: Rng = makeRng(seed)
   const g = blank(o.width, o.height)
 
-  // Plan the beat sequence: the requested skill beats, padded with free ones, then
-  // shuffled so the demands are not front-loaded.
+  // Plan the beat sequence: the requested skill beats, padded with a little free
+  // walking, then shuffled so the demands are not all front-loaded.
   const beats: Beat[] = []
   for (let i = 0; i < o.skillBeats; i++) beats.push(rng.pick(SKILL_BEATS))
-  const freeCount = rng.int(1, 3)
+  const freeCount = rng.int(0, 2)
   for (let i = 0; i < freeCount; i++) beats.push(rng.pick(FREE_BEATS))
   for (let i = beats.length - 1; i > 0; i--) {
     const j = rng.int(0, i)
     ;[beats[i], beats[j]] = [beats[j], beats[i]]
+  }
+  // Open on a demand rather than a stroll: a level whose first decision arrives
+  // two-thirds of the way in reads as a corridor with a puzzle stapled to the end.
+  const firstSkill = beats.findIndex((b) => BEAT_SKILL[b] !== null)
+  if (firstSkill > 0) {
+    ;[beats[0], beats[firstSkill]] = [beats[firstSkill], beats[0]]
   }
 
   const midY = Math.floor(o.height / 2)
@@ -107,11 +137,20 @@ export function generateLevel(seed: number, options: GenerateOptions = {}): Gene
   g[Math.max(0, gy - 4)][entranceX] = 'E'
   x += firstWidth
 
-  for (const beat of beats) {
-    const segWidth = rng.int(7, 12)
+  for (const wanted of beats) {
+    const segWidth = rng.int(6, 10)
     // Stop cleanly if the next beat would not fit — a short honest level beats a
     // clipped one.
     if (x + segWidth + 6 >= o.width) break
+
+    // A beat needs vertical room to be built as intended. Rather than silently
+    // degrading a demand into free walking — which is what made levels drift down to
+    // a single late decision — substitute another demand that does fit here.
+    const beat = fits(wanted, gy, o.height)
+      ? wanted
+      : (SKILL_BEATS.filter((b) => fits(b, gy, o.height))[
+          rng.int(0, Math.max(0, SKILL_BEATS.filter((b) => fits(b, gy, o.height)).length - 1))
+        ] ?? wanted)
 
     switch (beat) {
       case 'step': {

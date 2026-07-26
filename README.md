@@ -91,14 +91,49 @@ That makes generate-and-verify comfortably affordable: tens of candidate levels 
 second, each *proved* solvable rather than hoped to be. (Caveat: measured on small
 levels; a large level with a big inventory and no solution is the case to watch.)
 
+## Judging levels, not just validating them
+
+"Solvable" is a low bar. `generator/analyse.ts` uses the solver as a **taste
+instrument** — measuring properties that fun tends to require, even though it cannot
+measure fun:
+
+- **alternatives** — how many distinct minimum-skill routes exist. One means tightly
+  forced; a dozen means nothing you do really matters.
+- **firstDecisionAt** — where the first skill is spent, as a fraction of the route. A
+  level whose only decision is at the end is a corridor with a puzzle stapled on.
+- **criticalSkills / slackSkills** — take each granted skill away and re-solve. A skill
+  the level survives without is padding.
+
+Levels are rejected as `thin`, `back-loaded` or `mushy` on top of the correctness
+verdicts. Measuring this changed the generator rather than just filtering it: beats
+were silently degrading into free walking when they did not fit the available height,
+which is what produced levels with one late decision. Now a demand that does not fit
+is swapped for another *demand*, and the sequence opens on one.
+
+| | before | after |
+|---|--:|--:|
+| decisions per level | 1.9 | **2.7** |
+| first decision at | 0.36 | **0.21** |
+| distinct routes (mushiness) | 2.0 | **1.6** |
+| steps of walking | ~78 | ~67 |
+
+`thin` and `back-loaded` rejections disappeared entirely — the fault was upstream, and
+worth fixing rather than screening out. Full verification costs ~20 ms per candidate
+(the analysis re-solves once per granted skill), ~65% are accepted.
+
 ## Where this is going
 
 1. ~~Deterministic simulation + a hand-made level~~ ✅
 2. ~~A solver that proves solvability and finds the minimum skill set~~ ✅
-3. A generator working *backwards from a solution*, so solvability is true by
-   construction — with the solver used in the other direction, to reject levels that
-   are solvable *too easily* (no skills needed) or only one way.
+3. ~~A generator working *backwards from a solution*, so solvability is true by
+   construction~~ ✅
+4. ~~Solver-derived design metrics, and a quality bar built on them~~ ✅
+5. Next: **shape**. Levels are still a left-to-right chain of beats, so they read as a
+   sequence of obstacles rather than a puzzle with a form. Backtracking, decoy routes
+   that punish a wasted skill, and beats that interact (a blocker placed early
+   changing what is reachable later) are where the real design interest lives.
 
 The open question was never whether levels can be generated. It is whether generated
-levels are any *fun* — and the solver gives us the first real handle on that, because
-"how many distinct routes" and "how many skills are forced" are measurable.
+levels are any *fun* — and the metrics above are the first real handle on it, because
+"how forced is this" and "when does the first decision arrive" turn out to be
+measurable, and improving them measurably improved the levels.

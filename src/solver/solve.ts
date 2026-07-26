@@ -47,6 +47,11 @@ export interface SolveResult {
   expansions: number
   /** Distinct reachable states seen. */
   visited: number
+  /**
+   * Distinct minimum-skill routes found, when `enumerate` was requested. One means a
+   * tightly forced level; many means the puzzle is mushy.
+   */
+  alternatives?: PlanEntry[][]
 }
 
 export interface SolveOptions {
@@ -54,11 +59,26 @@ export interface SolveOptions {
   maxExpansions?: number
   /** Cap on steps in any single route, to bound wandering. */
   maxSteps?: number
+  /**
+   * Keep searching past the first solution and collect distinct routes that use the
+   * same (minimum) number of skills, up to this many. A level with one forced route
+   * plays very differently from one with a dozen — this is how we tell them apart.
+   */
+  enumerate?: number
 }
 
 const DEFAULTS: Required<SolveOptions> = {
   maxExpansions: 200_000,
   maxSteps: 600,
+  enumerate: 0,
+}
+
+/** Identity of a route by where its skills are spent, ignoring incidental timing. */
+function planSignature(plan: PlanEntry[]): string {
+  return plan
+    .map((p) => `${p.skill}@${p.x},${p.y}`)
+    .sort()
+    .join('|')
 }
 
 // --- tiny binary heap, ordered by (skills used, steps) ------------------------
@@ -189,6 +209,11 @@ export function solve(spec: LevelSpec, options: SolveOptions = {}): SolveResult 
   open.push({ node: start, plan: [], steps: 0, cost: 0 })
 
   let expansions = 0
+  // Enumeration bookkeeping: the first solution fixes the minimum skill count, and
+  // we then keep collecting routes that match it until the frontier gets pricier.
+  const found: PlanEntry[][] = []
+  const foundSigs = new Set<string>()
+  let best: { plan: PlanEntry[]; steps: number; used: number } | null = null
 
   while (open.size > 0) {
     const current = open.pop()!
@@ -210,14 +235,35 @@ export function solve(spec: LevelSpec, options: SolveOptions = {}): SolveResult 
     load(world, base, n, scratch)
     if (isExit(world, n.x, n.y)) {
       const used = SKILL_IDS.reduce((sum, s) => sum + (start.skills[s] - n.skills[s]), 0)
-      return {
-        solved: true,
-        plan: current.plan,
-        skillsUsed: used,
-        steps: current.steps,
-        expansions,
-        visited: seen.size,
+      if (!best) best = { plan: current.plan, steps: current.steps, used }
+
+      if (opts.enumerate <= 0) {
+        return {
+          solved: true,
+          plan: current.plan,
+          skillsUsed: used,
+          steps: current.steps,
+          expansions,
+          visited: seen.size,
+        }
       }
+
+      // Collect distinct routes at the same skill cost as the best one.
+      if (used === best.used) {
+        const sig = planSignature(current.plan)
+        if (!foundSigs.has(sig)) {
+          foundSigs.add(sig)
+          found.push(current.plan)
+        }
+      }
+      if (used > best.used || found.length >= opts.enumerate) break
+      continue
+    }
+
+    // Once enumerating, anything pricier than the best cannot be an alternative.
+    if (best && opts.enumerate > 0) {
+      const usedHere = SKILL_IDS.reduce((sum, s) => sum + (start.skills[s] - n.skills[s]), 0)
+      if (usedHere > best.used) break
     }
 
     if (n.activity === 'dead' || current.steps >= opts.maxSteps) continue
@@ -258,6 +304,18 @@ export function solve(spec: LevelSpec, options: SolveOptions = {}): SolveResult 
     }
   }
 
+  if (best) {
+    return {
+      solved: true,
+      plan: best.plan,
+      skillsUsed: best.used,
+      steps: best.steps,
+      expansions,
+      visited: seen.size,
+      alternatives: found,
+    }
+  }
+
   return {
     solved: false,
     reason: 'unreachable',
@@ -266,5 +324,6 @@ export function solve(spec: LevelSpec, options: SolveOptions = {}): SolveResult 
     steps: 0,
     expansions,
     visited: seen.size,
+    alternatives: opts.enumerate > 0 ? [] : undefined,
   }
 }
