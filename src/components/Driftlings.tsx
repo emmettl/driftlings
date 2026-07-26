@@ -69,7 +69,15 @@ function poseFor(d: Driftling, t: number): Pose {
 const PARTS = ['head', 'torso', 'armA', 'armB', 'legA', 'legB'] as const
 type Part = (typeof PARTS)[number]
 
-export function Driftlings({ world, revision }: { world: World; revision: number }) {
+export function Driftlings({
+  world,
+  revision,
+  watching,
+}: {
+  world: World
+  revision: number
+  watching?: number | null
+}) {
   const refs = {
     head: useRef<InstancedMesh>(null),
     torso: useRef<InstancedMesh>(null),
@@ -79,6 +87,7 @@ export function Driftlings({ world, revision }: { world: World; revision: number
     legB: useRef<InstancedMesh>(null),
   }
   const canopy = useRef<InstancedMesh>(null)
+  const marker = useRef<InstancedMesh>(null)
   const hits = useRef<InstancedMesh>(null)
   const dummy = useRef(new Object3D()).current
   const tint = useRef(new Color()).current
@@ -86,6 +95,7 @@ export function Driftlings({ world, revision }: { world: World; revision: number
   const build = (t: number) => {
     const live = world.driftlings.filter((d) => d.activity !== 'saved' && d.activity !== 'dead')
     let floaters = 0
+    let markers = 0
 
     live.forEach((d, i) => {
       const p = poseFor(d, t)
@@ -134,6 +144,16 @@ export function Driftlings({ world, revision }: { world: World; revision: number
         floaters += 1
       }
 
+      // A ring over the one you are watching, so it stays findable in a crowd.
+      if (d.id === watching && marker.current) {
+        dummy.position.set(ox, oy + 1.55 + Math.sin(t * 3) * 0.06, Z)
+        dummy.scale.setScalar(0.4)
+        dummy.rotation.set(Math.PI / 2, 0, t * 1.4)
+        dummy.updateMatrix()
+        marker.current.setMatrixAt(markers, dummy.matrix)
+        markers += 1
+      }
+
       // Invisible pick target: one box per driftling, so a tap maps to a driftling
       // rather than to whichever limb happened to be in front.
       if (hits.current) {
@@ -152,6 +172,11 @@ export function Driftlings({ world, revision }: { world: World; revision: number
       m.instanceMatrix.needsUpdate = true
       if (m.instanceColor) m.instanceColor.needsUpdate = true
       m.computeBoundingSphere()
+    }
+    if (marker.current) {
+      marker.current.count = markers
+      marker.current.instanceMatrix.needsUpdate = true
+      marker.current.computeBoundingSphere()
     }
     if (canopy.current) {
       canopy.current.count = floaters
@@ -198,6 +223,17 @@ export function Driftlings({ world, revision }: { world: World; revision: number
       <instancedMesh ref={canopy} args={[undefined, undefined, cap]} frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial roughness={0.4} toneMapped={false} transparent opacity={0.85} />
+      </instancedMesh>
+
+      {/* Selection ring over the driftling being watched. */}
+      <instancedMesh ref={marker} args={[undefined, undefined, cap]} frustumCulled={false}>
+        <torusGeometry args={[1, 0.16, 8, 20]} />
+        <meshStandardMaterial
+          color="#ffffff"
+          emissive="#8fe8ff"
+          emissiveIntensity={2.4}
+          toneMapped={false}
+        />
       </instancedMesh>
 
       {/* Pick targets — invisible but still raycast. */}

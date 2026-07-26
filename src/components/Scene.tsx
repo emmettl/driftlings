@@ -51,6 +51,7 @@ function Rig({ world }: { world: World }) {
   const size = useThree((s) => s.size)
   const mode = useGame((s) => s.cameraMode)
   const panned = useGame((s) => s.focus)
+  const watching = useGame((s) => s.watching)
   // Smoothed focus, so the camera eases after the action instead of snapping to it.
   const focus = useRef({ x: world.width / 2, y: -world.height / 2, d: 40 })
   // Banking. The camera always eases toward its target, so how far it is LAGGING
@@ -84,15 +85,19 @@ function Rig({ world }: { world: World }) {
       const toExit = (d: (typeof live)[number]) =>
         Math.abs(d.x - world.exit.x) + Math.abs(d.y - world.exit.y)
 
-      const incumbent = live.find((d) => d.id === leadId.current)
+      // A driftling you have selected outranks the leader: you asked to watch it.
+      const watched = watching === null ? undefined : live.find((d) => d.id === watching)
+      const incumbent = watched ?? live.find((d) => d.id === leadId.current)
       let lead = incumbent ?? live[0]
       let best = lead ? toExit(lead) : Infinity
-      for (const d of live) {
-        const dist = toExit(d)
-        // A challenger has to be a couple of cells better to take over.
-        if (dist < best - (incumbent ? 3 : 0)) {
-          best = dist
-          lead = d
+      if (!watched) {
+        for (const d of live) {
+          const dist = toExit(d)
+          // A challenger has to be a couple of cells better to take over.
+          if (dist < best - (incumbent ? 3 : 0)) {
+            best = dist
+            lead = d
+          }
         }
       }
       leadId.current = lead ? lead.id : null
@@ -171,6 +176,7 @@ export function Scene() {
   const revision = useGame((s) => s.revision)
   const applyTo = useGame((s) => s.applyTo)
   const seed = useGame((s) => s.seed)
+  const watchingId = useGame((s) => s.watching)
   const biome = biomeFor(seed)
 
   const onPick = (e: ThreeEvent<PointerEvent>) => {
@@ -203,7 +209,7 @@ export function Scene() {
       <Markers world={world} />
 
       <group onPointerDown={onPick}>
-        <Driftlings world={world} revision={revision} />
+        <Driftlings world={world} revision={revision} watching={watchingId} />
       </group>
       <Terrain world={world} revision={revision} biome={biome} />
     </>

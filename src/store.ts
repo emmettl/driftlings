@@ -31,6 +31,8 @@ interface GameState {
   cameraMode: 'follow' | 'overview' | 'manual'
   /** Where the player has panned to, in cell coordinates. */
   focus: { x: number; y: number } | null
+  /** The driftling under inspection: highlighted, followed, and the target of the bar. */
+  watching: number | null
   paused: boolean
   speed: number
   tick: () => void
@@ -41,6 +43,8 @@ interface GameState {
   togglePause: () => void
   toggleCamera: () => void
   panTo: (x: number, y: number) => void
+  watch: (id: number | null) => void
+  applySkillToWatched: (skill: SkillId) => void
   setSpeed: (n: number) => void
   cycleSpeed: () => void
   zoom: (direction: 'in' | 'out') => void
@@ -57,6 +61,7 @@ export const useGame = create<GameState>()((set, get) => ({
   selected: null,
   cameraMode: 'follow',
   focus: null,
+  watching: null,
   paused: false,
   speed: 1,
 
@@ -69,8 +74,12 @@ export const useGame = create<GameState>()((set, get) => ({
 
   select: (s) => set({ selected: get().selected === s ? null : s }),
 
+  // Tapping a driftling. If a skill is already armed this is the fast path — apply it
+  // straight away, as the original did. Otherwise it selects that driftling, which
+  // puts the camera on it and points the skill bar at it.
   applyTo: (id) => {
     const { world, selected } = get()
+    set({ watching: id, cameraMode: 'follow', focus: null })
     if (!selected) return
     if (assignSkill(world, id, selected)) {
       set({ revision: get().revision + 1 })
@@ -79,8 +88,24 @@ export const useGame = create<GameState>()((set, get) => ({
     }
   },
 
+  watch: (id) => set({ watching: id, ...(id === null ? {} : { cameraMode: 'follow', focus: null }) }),
+
+  // With a driftling selected the bar acts on it directly, so the skill buttons are
+  // the tap target rather than a figure one cell tall.
+  applySkillToWatched: (skill) => {
+    const { world, watching } = get()
+    if (watching === null) return
+    if (assignSkill(world, watching, skill)) set({ revision: get().revision + 1 })
+  },
+
   reset: () =>
-    set({ world: createWorld(get().spec), revision: 0, selected: null, paused: false }),
+    set({
+      world: createWorld(get().spec),
+      revision: 0,
+      selected: null,
+      watching: null,
+      paused: false,
+    }),
 
   newGenerated: () => {
     set({ generating: true })
@@ -108,12 +133,14 @@ export const useGame = create<GameState>()((set, get) => ({
       world: createWorld(spec),
       revision: 0,
       selected: null,
+      watching: null,
       paused: false,
       generating: false,
     })
   },
 
-  startPlaying: () => set({ phase: 'playing', world: createWorld(get().spec), revision: 0 }),
+  startPlaying: () =>
+    set({ phase: 'playing', world: createWorld(get().spec), revision: 0, watching: null }),
 
   togglePause: () => set({ paused: !get().paused }),
   // The button cycles back to following; the map is what puts you in manual.
@@ -142,3 +169,9 @@ export const useGame = create<GameState>()((set, get) => ({
     set({ speed: order[(i + 1) % order.length] })
   },
 }))
+
+// Dev-only handle for inspecting live state from the console or a driving script.
+// Stripped from production builds by the import.meta.env.DEV guard.
+if (import.meta.env.DEV) {
+  ;(globalThis as unknown as { __game?: typeof useGame }).__game = useGame
+}

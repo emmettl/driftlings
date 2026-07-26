@@ -104,6 +104,11 @@ canvas {
   bottom: calc(38px + env(safe-area-inset-bottom));
   display: flex;
   gap: 8px;
+  /* The transform above makes this a stacking context, so a tooltip's own z-index
+     only orders it against its siblings *inside* the bar — against the bubble below
+     it is the bar as a whole that competes. Without this the later-painted .subject
+     covered the tooltips. */
+  z-index: 3;
 }
 
 .skill {
@@ -452,5 +457,62 @@ canvas {
 @media (hover: none) {
   [data-tip]::after {
     display: none;
+  }
+}
+
+/* ---------- Selected driftling ---------- */
+.subject {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(143, 232, 255, 0.4);
+  background: rgba(10, 14, 26, 0.9);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #dbe6ff;
+  white-space: nowrap;
+  z-index: 2; /* below the skill bar, so its tooltips clear the bubble */
+}
+
+.subject b {
+  color: #8fe8ff;
+  font-weight: 700;
+}
+
+.subject-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8fe8ff;
+  box-shadow: 0 0 10px #8fe8ff;
+}
+
+.subject-traits {
+  opacity: 0.7;
+}
+
+.subject-drop {
+  margin-left: 4px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #aab6d8;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .subject {
+    bottom: calc(92px + env(safe-area-inset-bottom));
+    font-size: 10px;
   }
 }

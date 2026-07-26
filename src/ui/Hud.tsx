@@ -1,4 +1,5 @@
 import { SKILL_IDS } from '../sim/types'
+import { canAssign } from '../sim/step'
 import { useGame } from '../store'
 import { Minimap } from './Minimap'
 
@@ -43,10 +44,28 @@ export function Hud() {
   const seed = useGame((s) => s.seed)
   const generating = useGame((s) => s.generating)
   const newGenerated = useGame((s) => s.newGenerated)
+  const watching = useGame((s) => s.watching)
+  const watch = useGame((s) => s.watch)
+  const applySkillToWatched = useGame((s) => s.applySkillToWatched)
   const cameraMode = useGame((s) => s.cameraMode)
   const toggleCamera = useGame((s) => s.toggleCamera)
 
-  const out = world.saved + world.lost
+  // "Out" is a genre term and means what it means in Lemmings: released from the
+  // hatch and still going. It used to be saved + lost, which is very nearly the
+  // opposite — the counter sat on 0 while ten of them wandered around the level.
+  const out = world.driftlings.filter(
+    (d) => d.activity !== 'saved' && d.activity !== 'dead',
+  ).length
+
+  // The driftling under inspection, if it is still going. Selecting one points the
+  // skill bar at it: the buttons say what THIS driftling can be told to do, which is
+  // also where the rules become visible — a faller cannot be made a blocker, and a
+  // driftling that already climbs cannot be given a second pair of boots.
+  const subject = watching === null ? null : world.driftlings.find((d) => d.id === watching)
+  const alive = subject && subject.activity !== 'dead' && subject.activity !== 'saved' ? subject : null
+  const traits = alive
+    ? [alive.isClimber ? 'climbs' : null, alive.isFloater ? 'floats' : null].filter(Boolean)
+    : []
 
   return (
     <>
@@ -92,13 +111,17 @@ export function Hud() {
       <div className="skills">
         {SKILL_IDS.map((id) => {
           const left = world.skills[id]
+          // With somebody selected, the button is only live if the rules allow that
+          // skill on that driftling right now.
+          const allowed = alive ? canAssign(alive, id) : true
+          const disabled = left <= 0 || !allowed
           return (
             <button
               key={id}
-              className={`skill ${selected === id ? 'on' : ''}`}
+              className={`skill ${selected === id && !alive ? 'on' : ''}`}
               data-tip={SKILL_INFO[id].tip}
-              disabled={left <= 0}
-              onClick={() => select(id)}
+              disabled={disabled}
+              onClick={() => (alive ? applySkillToWatched(id) : select(id))}
             >
               <span className="n">{left}</span>
               <span className="l">{SKILL_INFO[id].label}</span>
@@ -109,12 +132,25 @@ export function Hud() {
 
       <Minimap />
 
+      {alive && (
+        <div className="subject">
+          <span className="subject-dot" />
+          <b>watching</b> · {alive.activity}
+          {traits.length > 0 && <span className="subject-traits"> · {traits.join(' · ')}</span>}
+          <button className="subject-drop" onClick={() => watch(null)}>
+            release
+          </button>
+        </div>
+      )}
+
       {/* Doubles as the touch story: there is no hover on a phone, so the selected
           skill explains itself down here instead. */}
       <div className="hint">
-        {selected
-          ? `${SKILL_INFO[selected].tip}  —  now tap a driftling`
-          : 'pick a skill, then tap a driftling'}
+        {alive
+          ? 'the camera is on this one — pick a skill to give it, or tap elsewhere to let go'
+          : selected
+            ? `${SKILL_INFO[selected].tip}  —  now tap a driftling`
+            : 'tap a driftling to watch it, or pick a skill first'}
       </div>
 
       {world.finished && (

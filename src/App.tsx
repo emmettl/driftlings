@@ -10,6 +10,7 @@ import { isMobile, quality } from './game/device'
 export default function App() {
   const phase = useGame((s) => s.phase)
   const zoom = useGame((s) => s.zoom)
+  const watch = useGame((s) => s.watch)
   return (
     <div
       className="app"
@@ -22,6 +23,8 @@ export default function App() {
         dpr={[1, quality.maxDpr]}
         gl={{ antialias: !isMobile, powerPreference: 'high-performance' }}
         camera={{ fov: 45, near: 0.1, far: 500 }}
+        // Clicking away from any driftling drops the selection.
+        onPointerMissed={() => watch(null)}
         shadows={quality.shadows}
       >
         {phase === 'attract' ? <AttractScene /> : <Scene />}
