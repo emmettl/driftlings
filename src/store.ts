@@ -24,6 +24,8 @@ interface GameState {
   seed: number | null
   generating: boolean
   revision: number
+  /** The title screen runs until the player begins. */
+  phase: 'attract' | 'playing'
   selected: SkillId | null
   cameraMode: 'follow' | 'overview'
   paused: boolean
@@ -32,6 +34,7 @@ interface GameState {
   select: (s: SkillId | null) => void
   applyTo: (id: number) => void
   reset: () => void
+  startPlaying: () => void
   togglePause: () => void
   toggleCamera: () => void
   setSpeed: (n: number) => void
@@ -44,6 +47,7 @@ export const useGame = create<GameState>()((set, get) => ({
   seed: null,
   generating: false,
   revision: 0,
+  phase: 'attract',
   selected: null,
   cameraMode: 'follow',
   paused: false,
@@ -101,6 +105,8 @@ export const useGame = create<GameState>()((set, get) => ({
       generating: false,
     })
   },
+
+  startPlaying: () => set({ phase: 'playing', world: createWorld(get().spec), revision: 0 }),
 
   togglePause: () => set({ paused: !get().paused }),
   toggleCamera: () =>

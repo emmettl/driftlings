@@ -13,26 +13,43 @@ import type { World } from '../sim/types'
 const FRONT = 1.9 // just in front of the rock face, alongside the driftlings
 
 export function Markers({ world }: { world: World }) {
+  // Reaching the exit is the most satisfying thing that happens in the game and had
+  // no feedback at all. A save now punches the portal: a bright flare that fades.
+  const savedSeen = useRef(0)
+  const flare = useRef(0)
   const exitRing = useRef<Mesh>(null)
   const exitBeam = useRef<Mesh>(null)
   const exitLight = useRef<PointLight>(null)
   const entryGroup = useRef<Group>(null)
   const entryBeam = useRef<Mesh>(null)
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime
     const pulse = 0.5 + 0.5 * Math.sin(t * 2.4)
 
+    // Somebody made it since the last frame?
+    if (world.saved > savedSeen.current) {
+      flare.current = 1
+      savedSeen.current = world.saved
+    } else if (world.saved < savedSeen.current) {
+      savedSeen.current = world.saved // the level was restarted
+    }
+    flare.current = Math.max(0, flare.current - dt * 1.8)
+    const burst = flare.current * flare.current
+
     if (exitRing.current) {
-      const s = 1 + pulse * 0.16
+      const s = 1 + pulse * 0.16 + burst * 0.9
       exitRing.current.scale.set(s, s, 1)
-      exitRing.current.rotation.z = t * 0.6
+      // It spins up sharply on a save, then settles back.
+      exitRing.current.rotation.z = t * (0.6 + burst * 9)
+      const mat = exitRing.current.material as unknown as { emissiveIntensity: number }
+      mat.emissiveIntensity = 2.6 + burst * 9
     }
     if (exitBeam.current) {
       const mat = exitBeam.current.material as { opacity: number }
-      mat.opacity = 0.1 + pulse * 0.16
+      mat.opacity = 0.1 + pulse * 0.16 + burst * 0.5
     }
-    if (exitLight.current) exitLight.current.intensity = 9 + pulse * 10
+    if (exitLight.current) exitLight.current.intensity = 9 + pulse * 10 + burst * 60
 
     // The entrance hatch bobs gently, and its beam marks the column driftlings drop
     // down — the thing you actually need to read to plan the first few seconds.

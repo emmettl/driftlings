@@ -242,3 +242,67 @@ canvas {
     bottom: calc(96px + env(safe-area-inset-bottom));
   }
 }
+
+/* ---------- Title / attract screen ---------- */
+.title-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(10, 10, 26, 0.1), rgba(10, 10, 26, 0.72));
+}
+
+.title-screen > * {
+  pointer-events: auto;
+}
+
+.game-title {
+  font-family: var(--pixel);
+  font-size: clamp(26px, 7vw, 62px);
+  margin: 0;
+  color: var(--cyan);
+  letter-spacing: 4px;
+  text-shadow:
+    0 0 22px rgba(75, 224, 255, 0.6),
+    4px 4px 0 rgba(10, 20, 50, 0.9);
+}
+
+.game-sub {
+  font-family: var(--pixel);
+  font-size: clamp(8px, 1.4vw, 12px);
+  color: var(--pink);
+  letter-spacing: 3px;
+  margin-bottom: 18px;
+  text-shadow: 0 0 14px rgba(255, 122, 217, 0.5);
+}
+
+.btn-start {
+  font-family: var(--pixel);
+  font-size: 15px;
+  letter-spacing: 4px;
+  padding: 18px 40px;
+  min-height: 52px;
+  border: none;
+  border-radius: 10px;
+  background: var(--cyan);
+  color: #04202a;
+  cursor: pointer;
+  box-shadow: 0 0 26px rgba(75, 224, 255, 0.45);
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.btn-start:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 38px rgba(75, 224, 255, 0.7);
+}
+
+.title-foot {
+  margin-top: 20px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  opacity: 0.45;
+}
