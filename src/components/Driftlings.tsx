@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Color, InstancedMesh, Object3D } from 'three'
-import { stepPeriod } from '../sim/step'
-import { tickAlpha } from '../game/clock'
+import { smoothX, smoothY } from '../game/interpolate'
 import type { Activity, Driftling, World } from '../sim/types'
 
 // Driftlings are little voxel figures rather than capsules: a head, a torso, two arms
@@ -92,18 +91,11 @@ export function Driftlings({ world, revision }: { world: World; revision: number
       const p = poseFor(d, t)
       const face = d.dir // limbs swing along travel; the figure mirrors with it
 
-      // The simulation moves a whole cell at a time, every few ticks. Drawing that
-      // literally would be a sequence of hops, so the figure is drawn part-way
-      // through its current step: it slides out of the cell it left and into the one
-      // it is now in, arriving just as the next step lands.
-      // phase is an integer that only moves on a tick, so on its own it quantises the
-      // glide to the tick rate. The sub-tick fraction is what makes this smooth.
-      const glide = Math.min(1, (d.phase + tickAlpha()) / stepPeriod(d))
-      const ease = glide * glide * (3 - 2 * glide) // smoothstep, so it settles rather than jerks
-      const ox = d.prevX + (d.x - d.prevX) * ease
-      const oyCell = d.prevY + (d.y - d.prevY) * ease
+      // Drawn part-way through its current step rather than snapped to a cell — see
+      // game/interpolate. The camera uses the same helper, so the two never disagree.
+      const ox = smoothX(d)
       // Feet sit at the bottom of the cell, so the figure stands on the surface.
-      const oy = -oyCell - 0.5
+      const oy = -smoothY(d) - 0.5
       tint.set(BODY[d.activity] ?? BODY.walker)
 
       const place = (part: Part, x: number, y: number, z: number, sx: number, sy: number, sz: number) => {

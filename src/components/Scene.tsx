@@ -3,6 +3,7 @@ import { ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import type { World } from '../sim/types'
 import { setViewport } from '../game/viewport'
 import { setTickAlpha } from '../game/clock'
+import { smoothX, smoothY } from '../game/interpolate'
 import { Backdrop } from './Backdrop'
 import { Markers } from './Markers'
 import { Terrain } from './Terrain'
@@ -57,6 +58,10 @@ function Rig({ world }: { world: World }) {
   // orbit, so the level leans into the movement and settles when you stop, with the
   // backdrop parallaxing against it.
   const lean = useRef({ roll: 0, yaw: 0 })
+  // Who the camera is watching. Re-picking the closest to the exit every frame makes
+  // the shot flick between two driftlings that are neck and neck, so the incumbent
+  // keeps the job unless somebody is clearly ahead.
+  const leadId = useRef<number | null>(null)
 
   useFrame((_, dt) => {
     const aspect = size.width / Math.max(1, size.height)
@@ -75,22 +80,33 @@ function Rig({ world }: { world: World }) {
       // made. Falling back to the entrance keeps the shot sensible before anyone is
       // out, and while the last of them are still filing in.
       const live = world.driftlings.filter((d) => d.activity !== 'dead' && d.activity !== 'saved')
-      let lead = live[0]
-      let best = Infinity
+      const toExit = (d: (typeof live)[number]) =>
+        Math.abs(d.x - world.exit.x) + Math.abs(d.y - world.exit.y)
+
+      const incumbent = live.find((d) => d.id === leadId.current)
+      let lead = incumbent ?? live[0]
+      let best = lead ? toExit(lead) : Infinity
       for (const d of live) {
-        const dist = Math.abs(d.x - world.exit.x) + Math.abs(d.y - world.exit.y)
-        if (dist < best) {
+        const dist = toExit(d)
+        // A challenger has to be a couple of cells better to take over.
+        if (dist < best - (incumbent ? 3 : 0)) {
           best = dist
           lead = d
         }
       }
+      leadId.current = lead ? lead.id : null
       if (mode === 'manual' && panned) {
         // The player has taken the wheel via the minimap.
         targetX = panned.x
         targetY = -panned.y
+      } else if (lead) {
+        // The interpolated position, not the cell. Following the raw cell made the
+        // camera lurch a whole cell at a time while the driftling glided smoothly.
+        targetX = smoothX(lead)
+        targetY = -smoothY(lead)
       } else {
-        targetX = lead ? lead.x : world.entrance.x
-        targetY = lead ? -lead.y : -world.entrance.y
+        targetX = world.entrance.x
+        targetY = -world.entrance.y
       }
 
       // Do not show the void beyond the level edges.
