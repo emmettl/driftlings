@@ -219,11 +219,26 @@ canvas {
 .minimap {
   position: absolute;
   right: 14px;
-  bottom: calc(14px + env(safe-area-inset-bottom));
+  /* Clear of the skill bar and the hint line beneath it. */
+  bottom: calc(104px + env(safe-area-inset-bottom));
   border: 1px solid rgba(75, 224, 255, 0.28);
   border-radius: 6px;
   background: rgba(8, 10, 26, 0.7);
   image-rendering: pixelated;
-  max-height: 34vh;
   pointer-events: none;
+  /* A canvas keeps its attribute size unless told otherwise, so tall levels used to
+     run off the bottom of the screen. Bound it on both axes and let object-fit keep
+     the level's proportions rather than squashing it. */
+  width: auto;
+  height: auto;
+  max-width: min(30vw, 240px);
+  max-height: min(30vh, 220px);
+  object-fit: contain;
+}
+
+@media (max-height: 620px) {
+  .minimap {
+    max-height: 22vh;
+    bottom: calc(96px + env(safe-area-inset-bottom));
+  }
 }

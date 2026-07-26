@@ -19,14 +19,33 @@ import type { World } from '../sim/types'
 
 const DEPTH = 3.4
 
+// The rock changes character with altitude, so a descent reads as going somewhere
+// rather than as more of the same: cool daylit blue near the surface, violet through
+// the middle, ember-warm in the depths.
+const STRATA = [
+  { surface: new Color('#5fd6ff'), body: new Color('#3f6ea8'), crown: new Color('#9beeff') },
+  { surface: new Color('#a071e8'), body: new Color('#4b3a86'), crown: new Color('#c9a6ff') },
+  { surface: new Color('#ff8f6b'), body: new Color('#7d3a52'), crown: new Color('#ffc38f') },
+]
+
+function strataAt(t: number) {
+  const scaled = Math.min(0.999, Math.max(0, t)) * (STRATA.length - 1)
+  const i = Math.floor(scaled)
+  const f = scaled - i
+  const a = STRATA[i]
+  const b = STRATA[Math.min(STRATA.length - 1, i + 1)]
+  return {
+    surface: a.surface.clone().lerp(b.surface, f),
+    body: a.body.clone().lerp(b.body, f),
+    crown: a.crown.clone().lerp(b.crown, f),
+  }
+}
+
 const PALETTE = {
-  earthTop: new Color('#5fd6ff'),
-  earthShallow: new Color('#3f6ea8'),
-  earthDeep: new Color('#131f3d'),
+  earthDeep: new Color('#0e1630'),
   steelTop: new Color('#b39ae8'),
   steelDeep: new Color('#3b2f63'),
   crystal: new Color('#7affd4'),
-  crown: new Color('#9beeff'),
 }
 
 /** Stable pseudo-random in [0,1) from a cell coordinate. */
@@ -43,6 +62,8 @@ interface Block {
   buried: number
   top: boolean
   n: number
+  /** Position through the level's strata, 0 at the surface and 1 at the depths. */
+  depthT: number
 }
 
 export function Terrain({ world, revision }: { world: World; revision: number }) {
@@ -63,7 +84,15 @@ export function Terrain({ world, revision }: { world: World; revision: number })
         if (c !== CELL.EARTH && c !== CELL.STEEL) continue
         let buried = 0
         while (buried < 7 && solid(x, y - 1 - buried)) buried++
-        out.push({ x, y, kind: c, buried, top: !solid(x, y - 1), n: hash(x, y) })
+        out.push({
+          x,
+          y,
+          kind: c,
+          buried,
+          top: !solid(x, y - 1),
+          n: hash(x, y),
+          depthT: y / Math.max(1, world.height - 1),
+        })
       }
     }
     return out
@@ -93,10 +122,11 @@ export function Terrain({ world, revision }: { world: World; revision: number })
 
       // Shade by how deeply buried the cell is, then jitter so no two are identical.
       const t = Math.min(1, blk.buried / 5)
+      const strata = strataAt(blk.depthT)
       if (steel) {
         tint.copy(PALETTE.steelTop).lerp(PALETTE.steelDeep, t)
       } else {
-        tint.copy(blk.top ? PALETTE.earthTop : PALETTE.earthShallow).lerp(PALETTE.earthDeep, t)
+        tint.copy(blk.top ? strata.surface : strata.body).lerp(PALETTE.earthDeep, t)
       }
       tint.multiplyScalar(0.86 + blk.n * 0.28)
       b.setColorAt(i, tint)
@@ -107,7 +137,7 @@ export function Terrain({ world, revision }: { world: World; revision: number })
         dummy.scale.set(1, 0.12, DEPTH + jut - 0.3)
         dummy.updateMatrix()
         cr.setMatrixAt(crowns, dummy.matrix)
-        cr.setColorAt(crowns, steel ? PALETTE.steelTop : PALETTE.crown)
+        cr.setColorAt(crowns, steel ? PALETTE.steelTop : strata.crown)
         crowns += 1
 
         // Occasional growths, purely decorative.

@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import type { World } from '../sim/types'
 import { setViewport } from '../game/viewport'
+import { Backdrop } from './Backdrop'
 import { Terrain } from './Terrain'
 import { Driftlings } from './Driftlings'
 import { useGame } from '../store'
@@ -117,6 +118,8 @@ export function Scene() {
       <hemisphereLight args={['#6a5cff', '#100e26', 0.9]} />
       <directionalLight position={[12, 18, 22]} intensity={1.5} color="#ffd0f0" />
       <pointLight position={[world.width / 2, -world.height / 2, 14]} intensity={90} color="#4be0ff" />
+
+      <Backdrop width={world.width} height={world.height} />
 
       <group onPointerDown={onPick}>
         <Driftlings world={world} revision={revision} />
