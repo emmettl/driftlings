@@ -212,7 +212,8 @@ the work is embarrassingly parallel because every seed is independent.
 4. ~~Solver-derived design metrics, and a quality bar built on them~~ ✅
 5. ~~**Shape** — a serpentine route that folds back on itself instead of a single
    left-to-right chain~~ ✅
-6. Next: **beats that interact**. Everything so far is a sequence of independent
+6. ~~Selecting a driftling to watch and command directly~~ ✅
+7. Next: **beats that interact**. Everything so far is a sequence of independent
    demands. The depth in Lemmings comes from a skill spent early changing what is
    reachable later — above all the blocker, which exists to turn *other* driftlings
    around. That needs the solver to reason about the crowd rather than one route, and
@@ -222,3 +223,42 @@ The open question was never whether levels can be generated. It is whether gener
 levels are any *fun* — and the metrics above are the first real handle on it, because
 "how forced is this" and "when does the first decision arrive" turn out to be
 measurable, and improving them measurably improved the levels.
+
+## Open items
+
+Known, unfixed, and worth knowing before starting.
+
+**No generated level actually *requires* a blocker.** `findBlocker` searches for a
+placement that rescues a level, and one usually exists — but it is always *tolerated*
+rather than *needed*, because the pioneer's dug hole catches the followers anyway. This
+is a real property of the current rule set, not a search bug, and it is what item 7
+above is really about. It needs layouts with genuine branching, where the crowd can go
+somewhere the pioneer did not.
+
+**The exit reads poorly in the Verdant biome.** The exit is a fixed green by design (the
+colours that carry meaning do not vary with biome — see `game/biomes.ts`), but Verdant's
+rock is also green, so contrast drops. Either shift Verdant's palette or give the exit a
+biome-independent outline.
+
+**The soundtrack is unwired.** [Driftbox](https://github.com/emmettl/driftbox) is a
+drum-machine engine built to score this — deliberately free of React and DOM
+dependencies so it can be embedded. The interesting version is adaptive: the game already
+knows how a level is going (out, saved, lost, elapsed), so the pattern chain can follow
+it rather than looping underneath. Decide how the code is shared first — a package, a git
+dependency, or a monorepo. Copying the files in is the wrong answer.
+
+## If you are picking this up
+
+Two things will bite you otherwise.
+
+**Run `npm run verify:pack` after touching `src/sim` or `src/solver`.** The shipped level
+pack is verified once, offline, and then trusted for ever — so a rules change can
+silently invalidate it. Adding a ceiling to the world did exactly that to one of the
+forty, and nothing else would have caught it.
+
+**The simulation's invariants are load-bearing and easy to break by accident.** Integer
+only, no `Math.random`, no wall-clock time — the solver forks worlds and compares hashes,
+so a single float or random call makes it unsound. `advanceDriftling` in `sim/step.ts` is
+the *one* definition of the rules, shared by the game and the solver; do not add a second.
+The same applies to `game/interpolate.ts`, which the renderer and the camera share after
+two separate bugs caused by each computing positions its own way.
