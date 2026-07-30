@@ -77,7 +77,7 @@ export function analyse(spec: LevelSpec): Analysis {
     // OTHER driftlings around. It is therefore never load bearing for a route, and
     // route-level analysis would always call it slack. Whether the level actually
     // needs one is a crowd question, answered by the blocker search instead.
-    if (s === 'blocker') continue
+    if (s === 'blocker' || s === 'bomber') continue
     // Per-driftling traits are stocked per head so the whole crowd can follow, so
     // taking one away proves nothing — ask whether the level needs the trait at all.
     // For terrain skills, taking one away is exactly the question: is this a spare?

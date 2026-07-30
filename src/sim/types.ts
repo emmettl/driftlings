@@ -13,9 +13,27 @@ export const CELL = {
 
 export type CellKind = (typeof CELL)[keyof typeof CELL]
 
-export type SkillId = 'climber' | 'floater' | 'blocker' | 'basher' | 'digger'
+export type SkillId =
+  | 'climber'
+  | 'floater'
+  | 'bomber'
+  | 'blocker'
+  | 'builder'
+  | 'basher'
+  | 'miner'
+  | 'digger'
 
-export const SKILL_IDS: SkillId[] = ['climber', 'floater', 'blocker', 'basher', 'digger']
+/** The classic eight, in the order players expect to find them on the skill bar. */
+export const SKILL_IDS: SkillId[] = [
+  'climber',
+  'floater',
+  'bomber',
+  'blocker',
+  'builder',
+  'basher',
+  'miner',
+  'digger',
+]
 
 /** What a driftling is currently doing. */
 export type Activity =
@@ -23,8 +41,11 @@ export type Activity =
   | 'faller'
   | 'climber'
   | 'floater'
+  | 'bomber'
   | 'blocker'
+  | 'builder'
   | 'basher'
+  | 'miner'
   | 'digger'
   | 'saved'
   | 'dead'
@@ -50,6 +71,8 @@ export interface Driftling {
   /** Permanent traits, kept separate from the current activity. */
   isClimber: boolean
   isFloater: boolean
+  /** Steps remaining for finite jobs such as building and the bomb countdown. */
+  work: number
 }
 
 export interface World {
@@ -81,8 +104,13 @@ export const RULES = {
   fallPeriod: 2,
   climbPeriod: 5,
   floatPeriod: 5,
+  bombPeriod: 8,
+  buildPeriod: 6,
   bashPeriod: 6,
+  minePeriod: 6,
   digPeriod: 6,
+  builderSteps: 12,
+  bombCountdown: 5,
   /** Falling further than this without a floater is fatal. */
   splatHeight: 9,
   /** A walker steps up a ledge this tall; anything higher is a wall. */

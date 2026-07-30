@@ -16,13 +16,25 @@ const SKILL_INFO: Record<string, { label: string; tip: string }> = {
     label: 'FLOAT',
     tip: 'Survives any drop. Sticks to that one driftling for good — so you get one per head.',
   },
+  bomber: {
+    label: 'BOMB',
+    tip: 'Counts down, then blasts away nearby earth. Steel survives; the bomber does not.',
+  },
   blocker: {
     label: 'BLOCK',
     tip: 'Plants itself and turns the others around. It is out of the game for good.',
   },
+  builder: {
+    label: 'BUILD',
+    tip: 'Builds a twelve-step staircase in the direction it is facing.',
+  },
   basher: {
     label: 'BASH',
     tip: 'Tunnels sideways through earth — never steel. The tunnel stays open for everyone.',
+  },
+  miner: {
+    label: 'MINE',
+    tip: 'Cuts diagonally down through earth — useful when straight down is the wrong way.',
   },
   digger: {
     label: 'DIG',
@@ -37,6 +49,8 @@ export function Hud() {
   const select = useGame((s) => s.select)
   const paused = useGame((s) => s.paused)
   const togglePause = useGame((s) => s.togglePause)
+  const muted = useGame((s) => s.muted)
+  const toggleMuted = useGame((s) => s.toggleMuted)
   const speed = useGame((s) => s.speed)
   const cycleSpeed = useGame((s) => s.cycleSpeed)
   const reset = useGame((s) => s.reset)
@@ -86,6 +100,9 @@ export function Hud() {
           <button data-tip={paused ? 'Resume' : 'Pause'} onClick={togglePause}>
             {paused ? '▶' : '❚❚'}
           </button>
+          <button data-tip={muted ? 'Turn music on' : 'Mute music'} onClick={toggleMuted}>
+            {muted ? '♩' : '♫'}
+          </button>
           <button data-tip="Speed: 1x, 2x, 4x" onClick={cycleSpeed}>
             {speed}×
           </button>
@@ -118,6 +135,7 @@ export function Hud() {
           return (
             <button
               key={id}
+              data-skill={id}
               className={`skill ${selected === id && !alive ? 'on' : ''}`}
               data-tip={SKILL_INFO[id].tip}
               disabled={disabled}
@@ -136,6 +154,7 @@ export function Hud() {
         <div className="subject">
           <span className="subject-dot" />
           <b>watching</b> · {alive.activity}
+          {alive.activity === 'bomber' && <span className="subject-traits"> · {alive.work}</span>}
           {traits.length > 0 && <span className="subject-traits"> · {traits.join(' · ')}</span>}
           <button className="subject-drop" onClick={() => watch(null)}>
             release

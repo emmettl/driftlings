@@ -6,6 +6,14 @@ import { firstLevel } from './levels/handmade'
 import { findLevel } from './generator/verify'
 import type { LevelSpec } from './sim/world'
 import pack from './levels/pack.json'
+import {
+  setSoundtrackMuted,
+  soundLost,
+  soundSaved,
+  soundSkill,
+  startSoundtrack,
+  updateSoundtrack,
+} from './game/audio'
 
 // Levels are curated offline (npm run curate) and shipped as a pack, so picking one
 // is instant. Generating in the browser meant a several-hundred-millisecond freeze on
@@ -34,6 +42,7 @@ interface GameState {
   /** The driftling under inspection: highlighted, followed, and the target of the bar. */
   watching: number | null
   paused: boolean
+  muted: boolean
   speed: number
   tick: () => void
   select: (s: SkillId | null) => void
@@ -41,6 +50,7 @@ interface GameState {
   reset: () => void
   startPlaying: () => void
   togglePause: () => void
+  toggleMuted: () => void
   toggleCamera: () => void
   panTo: (x: number, y: number) => void
   watch: (id: number | null) => void
@@ -63,12 +73,18 @@ export const useGame = create<GameState>()((set, get) => ({
   focus: null,
   watching: null,
   paused: false,
+  muted: false,
   speed: 1,
 
   tick: () => {
     const { world, paused } = get()
     if (paused || world.finished) return
+    const saved = world.saved
+    const lost = world.lost
     stepWorld(world)
+    if (world.saved > saved) soundSaved()
+    if (world.lost > lost) soundLost()
+    updateSoundtrack(world, get().spec.quota)
     set({ revision: get().revision + 1 })
   },
 
@@ -82,6 +98,7 @@ export const useGame = create<GameState>()((set, get) => ({
     set({ watching: id, cameraMode: 'follow', focus: null })
     if (!selected) return
     if (assignSkill(world, id, selected)) {
+      soundSkill(selected)
       set({ revision: get().revision + 1 })
       // Deselect once the last of a skill is spent, so the toolbar can't lie.
       if (world.skills[selected] <= 0) set({ selected: null })
@@ -95,7 +112,10 @@ export const useGame = create<GameState>()((set, get) => ({
   applySkillToWatched: (skill) => {
     const { world, watching } = get()
     if (watching === null) return
-    if (assignSkill(world, watching, skill)) set({ revision: get().revision + 1 })
+    if (assignSkill(world, watching, skill)) {
+      soundSkill(skill)
+      set({ revision: get().revision + 1 })
+    }
   },
 
   reset: () =>
@@ -139,10 +159,17 @@ export const useGame = create<GameState>()((set, get) => ({
     })
   },
 
-  startPlaying: () =>
-    set({ phase: 'playing', world: createWorld(get().spec), revision: 0, watching: null }),
+  startPlaying: () => {
+    void startSoundtrack()
+    set({ phase: 'playing', world: createWorld(get().spec), revision: 0, watching: null })
+  },
 
   togglePause: () => set({ paused: !get().paused }),
+  toggleMuted: () => {
+    const muted = !get().muted
+    setSoundtrackMuted(muted)
+    set({ muted })
+  },
   // The button cycles back to following; the map is what puts you in manual.
   toggleCamera: () =>
     set({ cameraMode: get().cameraMode === 'overview' ? 'follow' : 'overview', focus: null }),

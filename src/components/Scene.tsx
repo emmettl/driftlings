@@ -6,6 +6,7 @@ import { setTickAlpha } from '../game/clock'
 import { smoothX, smoothY } from '../game/interpolate'
 import { biomeFor } from '../game/biomes'
 import { Backdrop } from './Backdrop'
+import { Ambience } from './Ambience'
 import { Markers } from './Markers'
 import { Terrain } from './Terrain'
 import { Driftlings } from './Driftlings'
@@ -206,6 +207,7 @@ export function Scene() {
       />
 
       <Backdrop width={world.width} height={world.height} biome={biome} />
+      <Ambience width={world.width} height={world.height} biome={biome} />
       <Markers world={world} />
 
       <group onPointerDown={onPick}>

@@ -1,4 +1,4 @@
-import { belowFloor, carve, isDiggable, isExit, isSolid } from './terrain'
+import { belowFloor, build, carve, isDiggable, isExit, isSolid } from './terrain'
 import { CELL, RULES, type Driftling, type SkillId, type World } from './types'
 
 // One tick of the world. Pure in spirit — it mutates `world` in place for speed
@@ -20,8 +20,14 @@ function periodFor(d: Driftling): number {
       return RULES.climbPeriod
     case 'floater':
       return RULES.floatPeriod
+    case 'bomber':
+      return RULES.bombPeriod
+    case 'builder':
+      return RULES.buildPeriod
     case 'basher':
       return RULES.bashPeriod
+    case 'miner':
+      return RULES.minePeriod
     case 'digger':
       return RULES.digPeriod
     default:
@@ -147,6 +153,55 @@ function stepDigger(world: World, d: Driftling): void {
   d.y += 1
 }
 
+function stepBuilder(world: World, d: Driftling): void {
+  if (d.work <= 0 || isSolid(world, d.x + d.dir, d.y - 1)) {
+    d.activity = 'walker'
+    d.phase = 0
+    return
+  }
+
+  // A one-cell stair: the brick is laid in front at foot height, then the builder
+  // steps onto the new tread. Repeating this makes a clean 45° staircase.
+  if (!build(world, d.x + d.dir, d.y)) {
+    d.activity = 'walker'
+    d.phase = 0
+    return
+  }
+  d.x += d.dir
+  d.y -= 1
+  d.work -= 1
+}
+
+function stepMiner(world: World, d: Driftling): void {
+  const nx = d.x + d.dir
+  const ny = d.y + 1
+  if (!isDiggable(world, nx, d.y) && !isDiggable(world, nx, ny)) {
+    d.activity = 'walker'
+    d.phase = 0
+    return
+  }
+  carve(world, nx, d.y)
+  carve(world, nx, ny)
+  d.x = nx
+  d.y = ny
+}
+
+function stepBomber(world: World, d: Driftling): void {
+  d.work -= 1
+  if (d.work > 0) return
+
+  // Compact, readable blast: earth goes, steel and markers do not. The bomber is
+  // sacrificed, as in the original vocabulary.
+  for (let oy = -2; oy <= 2; oy++) {
+    for (let ox = -2; ox <= 2; ox++) {
+      if (Math.abs(ox) + Math.abs(oy) > 3) continue
+      carve(world, d.x + ox, d.y + oy)
+    }
+  }
+  d.activity = 'dead'
+  world.lost += 1
+}
+
 /**
  * Advance one driftling by a single discrete step, ignoring tick pacing.
  *
@@ -177,8 +232,17 @@ export function advanceDriftling(world: World, d: Driftling): void {
     case 'climber':
       stepClimber(world, d)
       break
+    case 'bomber':
+      stepBomber(world, d)
+      break
+    case 'builder':
+      stepBuilder(world, d)
+      break
     case 'basher':
       stepBasher(world, d)
+      break
+    case 'miner':
+      stepMiner(world, d)
       break
     case 'digger':
       stepDigger(world, d)
@@ -208,6 +272,7 @@ export function stepWorld(world: World): void {
       prevY: world.entrance.y,
       isClimber: false,
       isFloater: false,
+      work: 0,
     })
     world.spawned += 1
   }
@@ -248,7 +313,10 @@ export function canAssign(d: Driftling, skill: SkillId): boolean {
     case 'floater':
       return !d.isFloater
     case 'blocker':
+    case 'bomber':
+    case 'builder':
     case 'basher':
+    case 'miner':
     case 'digger':
       return d.activity === 'walker'
     default:
@@ -269,8 +337,22 @@ export function applySkill(d: Driftling, skill: SkillId): void {
     case 'blocker':
       d.activity = 'blocker'
       break
+    case 'bomber':
+      d.activity = 'bomber'
+      d.work = RULES.bombCountdown
+      d.phase = 0
+      break
+    case 'builder':
+      d.activity = 'builder'
+      d.work = RULES.builderSteps
+      d.phase = 0
+      break
     case 'basher':
       d.activity = 'basher'
+      d.phase = 0
+      break
+    case 'miner':
+      d.activity = 'miner'
       d.phase = 0
       break
     case 'digger':
