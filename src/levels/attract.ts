@@ -13,7 +13,15 @@ export const attractStage: LevelSpec = {
   total: 24,
   releaseRate: 14,
   quota: 0,
-  skills: { blocker: 99, digger: 99, floater: 99, climber: 99, basher: 99 },
+  skills: {
+    blocker: 99,
+    builder: 99,
+    digger: 99,
+    miner: 99,
+    floater: 99,
+    climber: 99,
+    basher: 99,
+  },
   rows: [
     // Nobody may ever die here, and the only version of that promise which actually
     // holds is a geometric one: the whole interior is shorter than the survivable

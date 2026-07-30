@@ -7,6 +7,7 @@ import { SKILL_IDS, type SkillId } from '../sim/types'
 import { Terrain } from './Terrain'
 import { Driftlings } from './Driftlings'
 import { Backdrop } from './Backdrop'
+import { Ambience } from './Ambience'
 import { setTickAlpha } from '../game/clock'
 import { BIOMES, biomeFor } from '../game/biomes'
 
@@ -31,7 +32,16 @@ const RESET_AFTER = 1500 // ticks before the arena is wiped and refilled
 // survivable. Measured over 12 runs: every skill in this pool, climber included,
 // kills nobody. Nothing dies on the title screen — pinned by a test, because it has
 // broken twice.
-const WHIMSY: SkillId[] = ['blocker', 'blocker', 'digger', 'floater', 'basher', 'climber']
+const WHIMSY: SkillId[] = [
+  'blocker',
+  'blocker',
+  'builder',
+  'digger',
+  'miner',
+  'floater',
+  'basher',
+  'climber',
+]
 
 /** A world with the crowd already out and milling, so the title screen never opens on
  *  an empty arena waiting for the first driftling to be released. */
@@ -111,6 +121,7 @@ export function AttractScene() {
       <pointLight position={[centre.x, centre.y, 14]} intensity={70} color={biome.light.fill.getHex()} />
 
       <Backdrop width={world.width} height={world.height} biome={biome} />
+      <Ambience width={world.width} height={world.height} biome={biome} />
       <Terrain world={world} revision={revision.current} biome={biome} />
       <Driftlings world={world} revision={revision.current} />
     </>

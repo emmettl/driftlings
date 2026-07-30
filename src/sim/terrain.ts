@@ -44,6 +44,15 @@ export function carve(world: World, x: number, y: number): void {
   }
 }
 
+/** Place a builder brick without covering markers or another solid cell. */
+export function build(world: World, x: number, y: number): boolean {
+  if (!inBounds(world, x, y)) return false
+  const at = idx(world, x, y)
+  if (world.cells[at] !== CELL.EMPTY) return false
+  world.cells[at] = CELL.EARTH
+  return true
+}
+
 export function isExit(world: World, x: number, y: number): boolean {
   return cellAt(world, x, y) === CELL.EXIT
 }

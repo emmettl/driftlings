@@ -1,7 +1,7 @@
 import { advanceDriftling, applySkill, canAssign } from '../sim/step'
 import { createWorld, type LevelSpec } from '../sim/world'
 import { isExit } from '../sim/terrain'
-import { CELL, SKILL_IDS, type Activity, type Driftling, type SkillId, type World } from '../sim/types'
+import { SKILL_IDS, type Activity, type Driftling, type SkillId, type World } from '../sim/types'
 
 // Route solver: can ONE driftling get from the entrance to the exit, and with which
 // skills? That is the load-bearing question for level generation — in a level where
@@ -23,8 +23,9 @@ export interface SolverNode {
   climber: boolean
   floater: boolean
   fallen: number
-  /** Terrain cells removed so far, ascending. Usually tiny, so cheap to copy+hash. */
-  carved: number[]
+  work: number
+  /** Terrain differences as index/value pairs. Covers both carving and builder bricks. */
+  terrain: number[]
   skills: Record<SkillId, number>
 }
 
@@ -137,13 +138,13 @@ class Heap {
 function keyOf(n: SolverNode): string {
   return `${n.x},${n.y},${n.dir},${n.activity},${n.climber ? 1 : 0}${n.floater ? 1 : 0},${
     n.fallen
-  },${n.carved.join('.')},${SKILL_IDS.map((s) => n.skills[s]).join('')}`
+  },${n.work},${n.terrain.join('.')},${SKILL_IDS.map((s) => n.skills[s]).join(',')}`
 }
 
 /** Load a node into the scratch world so the real rules can be applied to it. */
 function load(world: World, base: Uint8Array, n: SolverNode, d: Driftling): void {
   world.cells.set(base)
-  for (const i of n.carved) world.cells[i] = CELL.EMPTY
+  for (let i = 0; i < n.terrain.length; i += 2) world.cells[n.terrain[i]] = n.terrain[i + 1]
   d.x = n.x
   d.y = n.y
   d.dir = n.dir
@@ -151,14 +152,15 @@ function load(world: World, base: Uint8Array, n: SolverNode, d: Driftling): void
   d.isClimber = n.climber
   d.isFloater = n.floater
   d.fallen = n.fallen
+  d.work = n.work
   d.phase = 0
 }
 
 /** Read the scratch world back out, recording any newly carved cells. */
 function capture(world: World, base: Uint8Array, d: Driftling, skills: SolverNode['skills']): SolverNode {
-  const carved: number[] = []
+  const terrain: number[] = []
   for (let i = 0; i < base.length; i++) {
-    if (base[i] !== CELL.EMPTY && world.cells[i] === CELL.EMPTY) carved.push(i)
+    if (base[i] !== world.cells[i]) terrain.push(i, world.cells[i])
   }
   return {
     x: d.x,
@@ -168,7 +170,8 @@ function capture(world: World, base: Uint8Array, d: Driftling, skills: SolverNod
     climber: d.isClimber,
     floater: d.isFloater,
     fallen: d.fallen,
-    carved,
+    work: d.work,
+    terrain,
     skills: { ...skills },
   }
 }
@@ -191,6 +194,7 @@ export function solve(spec: LevelSpec, options: SolveOptions = {}): SolveResult 
     prevY: world.entrance.y,
     isClimber: false,
     isFloater: false,
+    work: 0,
   }
   world.driftlings = [scratch]
 
@@ -202,7 +206,8 @@ export function solve(spec: LevelSpec, options: SolveOptions = {}): SolveResult 
     climber: false,
     floater: false,
     fallen: 0,
-    carved: [],
+    work: 0,
+    terrain: [],
     skills: { ...world.skills },
   }
 
@@ -288,8 +293,9 @@ export function solve(spec: LevelSpec, options: SolveOptions = {}): SolveResult 
         plan = [...current.plan, { step: current.steps, skill: choice.skill, x: n.x, y: n.y }]
       }
 
-      // A blocker can never move again — a dead end for a route search.
-      if (scratch.activity === 'blocker') continue
+      // A blocker cannot carry a solo route, and a bomber deliberately removes the
+      // driftling that used it. Both remain crowd tools rather than route successors.
+      if (scratch.activity === 'blocker' || scratch.activity === 'bomber') continue
 
       advanceDriftling(world, scratch)
       if (scratch.activity === 'dead') continue

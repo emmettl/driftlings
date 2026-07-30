@@ -10,7 +10,16 @@ export const firstLevel: LevelSpec = {
   total: 10,
   releaseRate: 20,
   quota: 8,
-  skills: { basher: 2, blocker: 2, floater: 2, climber: 2, digger: 2 },
+  skills: {
+    climber: 2,
+    floater: 2,
+    bomber: 2,
+    blocker: 2,
+    builder: 2,
+    basher: 2,
+    miner: 2,
+    digger: 2,
+  },
   rows: [
     '....................................................',
     '..........E.........................................',

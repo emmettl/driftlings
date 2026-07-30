@@ -175,6 +175,51 @@ describe('skills', () => {
     expect(d.y).toBeGreaterThan(startY)
   })
 
+  it('a builder lays a staircase and climbs it', () => {
+    const w = fixture(['..........', '.E........', '..........', '..........', '##########'], {
+      builder: 1,
+    })
+    run(w, 30)
+    const d = only(w)
+    d.activity = 'walker'
+    d.x = 2
+    d.y = 3
+    expect(assignSkill(w, d.id, 'builder')).toBe(true)
+    const startY = d.y
+    run(w, RULES.buildPeriod * 4)
+    expect(d.y).toBeLessThan(startY)
+    expect(isSolid(w, 3, 3)).toBe(true)
+  })
+
+  it('a miner cuts diagonally down through earth', () => {
+    const w = fixture(['........', '.E......', '...#####', '...#####', '########'], { miner: 1 })
+    run(w, 20)
+    const d = only(w)
+    d.activity = 'walker'
+    d.x = 2
+    d.y = 1
+    d.dir = 1
+    expect(assignSkill(w, d.id, 'miner')).toBe(true)
+    run(w, RULES.minePeriod * 2)
+    expect(d.x).toBeGreaterThan(2)
+    expect(d.y).toBeGreaterThan(1)
+    expect(isSolid(w, 3, 2)).toBe(false)
+  })
+
+  it('a bomber removes nearby earth but not steel', () => {
+    const w = fixture(['........', '.E......', '..#=#...', '########'], { bomber: 1 })
+    run(w, 20)
+    const d = only(w)
+    d.activity = 'walker'
+    d.x = 2
+    d.y = 1
+    expect(assignSkill(w, d.id, 'bomber')).toBe(true)
+    run(w, RULES.bombPeriod * RULES.bombCountdown)
+    expect(d.activity).toBe('dead')
+    expect(isSolid(w, 2, 2)).toBe(false)
+    expect(isSolid(w, 3, 2)).toBe(true)
+  })
+
   it('a climber tops out at the ceiling instead of leaving the world', () => {
     // The side walls read as solid at every height, so a climber in the edge column
     // always has a wall ahead. With open sky above there was no overhang to stop it:
@@ -218,7 +263,7 @@ describe('the attract arena', () => {
   // driftling released afterwards fell the full height of the arena. Both were only
   // ever caught by watching. This asserts the property instead, per skill, so a future
   // change to the arena's shape cannot quietly reintroduce it.
-  it.each(['blocker', 'digger', 'floater', 'basher', 'climber'] as const)(
+  it.each(['blocker', 'builder', 'digger', 'miner', 'floater', 'basher', 'climber'] as const)(
     'loses nobody when everyone is handed %s',
     (skill) => {
       const w = createWorld(attractStage)

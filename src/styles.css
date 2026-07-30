@@ -103,6 +103,8 @@ canvas {
   transform: translateX(-50%);
   bottom: calc(38px + env(safe-area-inset-bottom));
   display: flex;
+  width: min(720px, calc(100vw - 20px));
+  justify-content: center;
   gap: 8px;
   /* The transform above makes this a stacking context, so a tooltip's own z-index
      only orders it against its siblings *inside* the bar — against the bubble below
@@ -344,8 +346,10 @@ canvas {
   }
 
   .skills {
-    gap: 6px;
-    bottom: calc(30px + env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: repeat(4, minmax(52px, 62px));
+    gap: 5px;
+    bottom: calc(50px + env(safe-area-inset-bottom));
   }
 
   .skill {
@@ -359,7 +363,7 @@ canvas {
 
   .minimap {
     right: calc(8px + env(safe-area-inset-right));
-    bottom: calc(92px + env(safe-area-inset-bottom));
+    bottom: calc(168px + env(safe-area-inset-bottom));
     max-width: 26vw;
     max-height: 18vh;
   }
@@ -376,6 +380,9 @@ canvas {
 /* Landscape phones are short: pull the furniture in tight. */
 @media (max-height: 430px) {
   .skills {
+    display: flex;
+    overflow-x: auto;
+    justify-content: flex-start;
     bottom: calc(8px + env(safe-area-inset-bottom));
   }
   .hint {
@@ -512,7 +519,13 @@ canvas {
 
 @media (max-width: 760px) {
   .subject {
-    bottom: calc(92px + env(safe-area-inset-bottom));
+    bottom: calc(168px + env(safe-area-inset-bottom));
     font-size: 10px;
+  }
+}
+
+@media (max-height: 430px) {
+  .subject {
+    bottom: calc(70px + env(safe-area-inset-bottom));
   }
 }

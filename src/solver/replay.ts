@@ -31,6 +31,7 @@ export function replay(spec: LevelSpec, plan: PlanEntry[], maxSteps = 2000): Rep
     prevY: world.entrance.y,
     isClimber: false,
     isFloater: false,
+    work: 0,
   }
   world.driftlings = [d]
 

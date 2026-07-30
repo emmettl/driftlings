@@ -16,8 +16,11 @@ const BODY: Record<Activity, string> = {
   faller: '#ffb35c',
   floater: '#8affc1',
   climber: '#9ad8ff',
+  bomber: '#ff6b7a',
   blocker: '#ff7ad9',
+  builder: '#ffcf5c',
   basher: '#ff9f6b',
+  miner: '#b99cff',
   digger: '#ffe066',
   saved: '#ffffff',
   dead: '#555566',
@@ -26,6 +29,9 @@ const BODY: Record<Activity, string> = {
 const SKIN = new Color('#ffe9c9')
 const LIMB = new Color('#3b3f6b')
 const CANOPY = new Color('#8affc1')
+const TOOL = new Color('#dbe6ff')
+const BOMB = new Color('#ff4d6d')
+const BOOTS = new Color('#62c8ff')
 
 const Z = 2.1 // in front of the terrain slab so they always read clearly
 
@@ -52,12 +58,18 @@ function poseFor(d: Driftling, t: number): Pose {
     case 'climber':
       // Pressed to the wall, reaching up.
       return { crouch: 0.05, lean: 0.12, armsOut: false, legSwing: cycle * 0.07, armSwing: 0.26 }
+    case 'bomber':
+      return { crouch: 0.12, lean: 0, armsOut: false, legSwing: 0, armSwing: cycle * 0.04 }
     case 'blocker':
       // Planted, arms wide — the pose that says "nobody passes".
       return { crouch: 0.08, lean: 0, armsOut: true, legSwing: 0, armSwing: 0 }
     case 'basher':
       // Leaning into the wall, arms forward.
       return { crouch: 0.05, lean: 0.16, armsOut: false, legSwing: 0, armSwing: 0.3 + cycle * 0.08 }
+    case 'builder':
+      return { crouch: 0.08, lean: 0.12, armsOut: false, legSwing: 0.04, armSwing: 0.28 }
+    case 'miner':
+      return { crouch: 0.14, lean: 0.18, armsOut: false, legSwing: 0.03, armSwing: 0.32 + cycle * 0.08 }
     case 'digger':
       // Hunched over, digging down.
       return { crouch: 0.18, lean: 0.1, armsOut: false, legSwing: 0, armSwing: 0.12 + cycle * 0.06 }
@@ -87,6 +99,9 @@ export function Driftlings({
     legB: useRef<InstancedMesh>(null),
   }
   const canopy = useRef<InstancedMesh>(null)
+  const tools = useRef<InstancedMesh>(null)
+  const bombs = useRef<InstancedMesh>(null)
+  const boots = useRef<InstancedMesh>(null)
   const marker = useRef<InstancedMesh>(null)
   const hits = useRef<InstancedMesh>(null)
   const dummy = useRef(new Object3D()).current
@@ -95,6 +110,9 @@ export function Driftlings({
   const build = (t: number) => {
     const live = world.driftlings.filter((d) => d.activity !== 'saved' && d.activity !== 'dead')
     let floaters = 0
+    let toolCount = 0
+    let bombCount = 0
+    let bootCount = 0
     let markers = 0
 
     live.forEach((d, i) => {
@@ -144,6 +162,41 @@ export function Driftlings({
         floaters += 1
       }
 
+      // Permanent traits and active jobs get unmistakable silhouettes. Colour alone
+      // disappears in a crowd; boots, tools and a blinking bomb do not.
+      if (d.isClimber && boots.current) {
+        for (const side of [-1, 1]) {
+          dummy.position.set(ox + 0.12 * face, oy + 0.06, Z + side * 0.14)
+          dummy.scale.set(0.28, 0.14, 0.18)
+          dummy.rotation.set(0, 0, 0)
+          dummy.updateMatrix()
+          boots.current.setMatrixAt(bootCount, dummy.matrix)
+          boots.current.setColorAt(bootCount, BOOTS)
+          bootCount += 1
+        }
+      }
+
+      if (['builder', 'basher', 'miner', 'digger'].includes(d.activity) && tools.current) {
+        dummy.position.set(ox + 0.42 * face, oy + 0.72, Z + 0.28)
+        dummy.scale.set(d.activity === 'builder' ? 0.48 : 0.12, d.activity === 'builder' ? 0.2 : 0.72, 0.12)
+        dummy.rotation.set(0, 0, d.activity === 'digger' ? -0.55 * face : 0.65 * face)
+        dummy.updateMatrix()
+        tools.current.setMatrixAt(toolCount, dummy.matrix)
+        tools.current.setColorAt(toolCount, d.activity === 'builder' ? tint : TOOL)
+        toolCount += 1
+      }
+
+      if (d.activity === 'bomber' && bombs.current) {
+        const blink = 0.75 + 0.2 * Math.sin(t * 10)
+        dummy.position.set(ox + 0.42 * face, oy + 0.42, Z + 0.28)
+        dummy.scale.setScalar(blink * 0.28)
+        dummy.rotation.set(0, 0, 0)
+        dummy.updateMatrix()
+        bombs.current.setMatrixAt(bombCount, dummy.matrix)
+        bombs.current.setColorAt(bombCount, BOMB)
+        bombCount += 1
+      }
+
       // A ring over the one you are watching, so it stays findable in a crowd.
       if (d.id === watching && marker.current) {
         dummy.position.set(ox, oy + 1.55 + Math.sin(t * 3) * 0.06, Z)
@@ -184,6 +237,17 @@ export function Driftlings({
       if (canopy.current.instanceColor) canopy.current.instanceColor.needsUpdate = true
       canopy.current.computeBoundingSphere()
     }
+    for (const [mesh, count] of [
+      [tools.current, toolCount],
+      [bombs.current, bombCount],
+      [boots.current, bootCount],
+    ] as const) {
+      if (!mesh) continue
+      mesh.count = count
+      mesh.instanceMatrix.needsUpdate = true
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+      mesh.computeBoundingSphere()
+    }
     if (hits.current) {
       hits.current.count = live.length
       hits.current.instanceMatrix.needsUpdate = true
@@ -223,6 +287,24 @@ export function Driftlings({
       <instancedMesh ref={canopy} args={[undefined, undefined, cap]} frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial roughness={0.4} toneMapped={false} transparent opacity={0.85} />
+      </instancedMesh>
+
+      <instancedMesh ref={tools} args={[undefined, undefined, cap]} frustumCulled={false}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial roughness={0.3} metalness={0.45} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={bombs} args={[undefined, undefined, cap]} frustumCulled={false}>
+        <icosahedronGeometry args={[1, 1]} />
+        <meshStandardMaterial
+          roughness={0.25}
+          emissive="#ff284f"
+          emissiveIntensity={2.2}
+          toneMapped={false}
+        />
+      </instancedMesh>
+      <instancedMesh ref={boots} args={[undefined, undefined, cap * 2]} frustumCulled={false}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial roughness={0.4} emissive="#1d6fa3" emissiveIntensity={0.8} />
       </instancedMesh>
 
       {/* Selection ring over the driftling being watched. */}

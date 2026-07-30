@@ -106,7 +106,10 @@ export function hashWorld(w: World): string {
   }
   const bodies = w.driftlings
     .filter((d) => d.activity !== 'dead' && d.activity !== 'saved')
-    .map((d) => `${d.x},${d.y},${d.dir},${d.activity},${d.isClimber ? 1 : 0}${d.isFloater ? 1 : 0}`)
+    .map(
+      (d) =>
+        `${d.x},${d.y},${d.dir},${d.activity},${d.isClimber ? 1 : 0}${d.isFloater ? 1 : 0},${d.work}`,
+    )
     .sort()
     .join('|')
   const skills = SKILL_IDS.map((s) => w.skills[s]).join(',')
