@@ -8,6 +8,14 @@ extruded diorama, which keeps the puzzle legible while still looking dimensional
 
 *(Working title; rename freely.)*
 
+## Soundtrack provenance
+
+The soundtrack and gameplay cues contain no recorded samples. Driftlings uses the
+MIT-licensed Driftbox engine to synthesise every drum and bass voice at runtime from
+oscillators, noise, envelopes and filters; the musical patterns are original data in
+the two repositories. No third-party recordings, sample packs, copied breaks or drum
+machine ROM data are distributed with the game.
+
 ```bash
 npm install
 npm run dev
